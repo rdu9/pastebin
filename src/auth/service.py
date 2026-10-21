@@ -1,0 +1,104 @@
+from src.db.models import User, LoginSession
+import json
+from fastapi import HTTPException
+from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi.responses import JSONResponse
+from sqlmodel import select
+import uuid
+from src.config import Config
+from datetime import datetime, timedelta, timezone
+from .schemas import UserCreateModel, UserLoginModel
+from .security import (
+    verify_hashed_password,
+    generate_token,
+    generate_hashed_token,
+    hash_password,
+)
+from starlette.concurrency import run_in_threadpool
+
+
+class UserService:
+    async def user_exists(self, email: str, session: AsyncSession):
+        statement = select(User).where(User.email == email)
+        result = await session.exec(statement)
+        result_first = result.first()
+        if not result_first:
+            return False
+        return True
+
+    async def get_user_by_email(self, email: str, session: AsyncSession):
+        statement = select(User).where(User.email == email)
+        result = await session.exec(statement)
+        result_first = result.first()
+        if not result_first:
+            return None
+        return result_first
+
+    async def create_user(self, payload: UserCreateModel, session: AsyncSession):
+        user_email = payload.email
+        user_password = payload.password
+
+        if await self.user_exists(user_email, session):
+            raise HTTPException(status_code=409, detail="User already exists")
+
+        hashed_password = await run_in_threadpool(hash_password, user_password)
+
+        new_user = User(email=user_email, password_hash=hashed_password)
+
+        session.add(new_user)
+        await session.commit()
+        return new_user
+
+
+    # ----------
+
+    async def get_user_uid_by_email(self, user_email: str, session: AsyncSession):
+        statement = select(User.uid).where(User.email == user_email)
+        result = await session.exec(statement)
+        result_uid = result.one_or_none()
+        if not result_uid:
+            return None
+        return result_uid
+
+    async def check_user_password(
+        self, user_email: str, user_password: str, session: AsyncSession
+    ):
+        statement = select(User.password_hash).where(User.email == user_email)
+        result = await session.exec(statement)
+        hashed_password = result.one_or_none()
+        is_valid = await run_in_threadpool(verify_hashed_password, hashed_password, user_password)
+        if is_valid:
+            return True
+        else:
+            return False
+
+
+    async def add_cookie(self, response: JSONResponse, user_uid: uuid.UUID, session: AsyncSession):
+
+        # generate the token, and tokenhash. fast operations (microseconds), no threadpool needed
+
+        token = generate_token()
+        token_hash = generate_hashed_token(token)
+
+        # create the db table
+
+        new_login_session = LoginSession(token_hash=token_hash,user_uid=user_uid,expires_at=datetime.now(timezone.utc) + timedelta(days=30))
+        session.add(new_login_session)
+
+        # finally, add the cookie
+
+        response.set_cookie(
+            key="session",
+            value=token,
+            httponly=True,
+            secure=Config.COOKIE_SECURE,
+            samesite="lax",
+            max_age=30 * 24 * 3600,
+            path="/"
+        )
+
+        # commit the db changes at the end
+
+        await session.commit()
+
+        return response
