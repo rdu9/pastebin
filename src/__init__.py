@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import structlog
 from src.config import Config
 from src.auth.routes import auth_router
+from src.errors import register_all_errors
 
 structlog.configure(
     processors=[
@@ -35,6 +36,8 @@ app = FastAPI(
 
 
 # register all errors / middleware
+
+register_all_errors(app)
 
 # register all routes
 
