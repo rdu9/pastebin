@@ -17,4 +17,3 @@ htmlcov/
 .DS_Store
 .vscode/
 .idea/
-cookies.txt # skip if you already added it

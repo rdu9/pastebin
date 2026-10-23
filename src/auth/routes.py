@@ -7,9 +7,12 @@ from fastapi.responses import JSONResponse
 from .dependencies import get_current_user_uid
 import uuid
 
+## define routers , and service
+
 user_service = UserService()
 auth_router = APIRouter()
 
+## the actual endpoints
 
 @auth_router.post("/login")
 async def login_user(
@@ -74,3 +77,7 @@ async def me(
     session: AsyncSession = Depends(get_session),
 ):
     return await user_service.get_user_by_uid(user_uid, session)
+
+@auth_router.get("/")
+async def healthz():
+    return {"status":"ok"}
