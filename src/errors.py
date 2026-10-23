@@ -27,6 +27,10 @@ class InvalidCredentials(AppError):
     error_code = "invalid_credentials"
     message = "Invalid email or password."
 
+class TooLarge(AppError):
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
+    error_code = "too_large"
+    message = "Too large."
 
 class Forbidden(AppError):
     status_code = status.HTTP_403_FORBIDDEN

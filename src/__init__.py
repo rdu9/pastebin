@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import structlog
 from src.config import Config
 from src.auth.routes import auth_router
+from src.pastes.routes import pastes_router
 from src.errors import register_all_errors
 
 structlog.configure(
@@ -42,3 +43,4 @@ register_all_errors(app)
 # register all routes
 
 app.include_router(auth_router, prefix=f"/api/{version}/auth", tags = ["Auth"])
+app.include_router(pastes_router, prefix=f"/api/{version}/pastes", tags = ["Paste"])
