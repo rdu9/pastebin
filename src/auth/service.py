@@ -1,5 +1,4 @@
 from src.db.models import User, LoginSession
-import json
 from fastapi import HTTPException, Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.responses import JSONResponse
@@ -7,7 +6,7 @@ from sqlmodel import select
 import uuid
 from src.config import Config
 from datetime import datetime, timedelta, timezone
-from .schemas import UserCreateModel, UserLoginModel
+from .schemas import UserCreateModel
 from .security import (
     verify_hashed_password,
     generate_token,

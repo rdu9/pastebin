@@ -4,6 +4,7 @@ from .schemas import UserCreateModel, UserLoginModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 from .service import UserService
 from fastapi.responses import JSONResponse
+from .dependencies import get_current_user_uid
 import uuid
 
 user_service = UserService()
@@ -69,9 +70,7 @@ async def logout_user(
 
 @auth_router.get("/me")
 async def me(
-    token: str = Depends(user_service.get_current_token),
+    user_uid: uuid.UUID = Depends(get_current_user_uid),
     session: AsyncSession = Depends(get_session),
 ):
-    user_uid = await user_service.get_user_uid_by_token_hash(token, session)
-    response = await user_service.get_user_by_uid(user_uid, session)
-    return response
+    return await user_service.get_user_by_uid(user_uid, session)
