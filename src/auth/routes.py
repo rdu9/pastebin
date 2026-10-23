@@ -15,7 +15,7 @@ async def login_user(
     payload: UserLoginModel, session: AsyncSession = Depends(get_session)
 ):
 
-    user_email = payload.email
+    user_email = payload.email.strip().lower()
     user_password = payload.password
 
     # check if user exists and grab the uid
@@ -57,8 +57,14 @@ async def create_user(
 
 
 @auth_router.post("/logout")
-async def logout_user(response: Response):    
+async def logout_user(
+    response: Response,
+    token: str = Depends(user_service.get_current_token),
+    session: AsyncSession = Depends(get_session),
+):
+    await user_service.delete_session(token,session)
     response.delete_cookie("session", path="/")
+    return {}
 
 
 @auth_router.get("/me")
@@ -69,4 +75,3 @@ async def me(
     user_uid = await user_service.get_user_uid_by_token_hash(token, session)
     response = await user_service.get_user_by_uid(user_uid, session)
     return response
-
