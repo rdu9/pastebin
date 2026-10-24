@@ -65,3 +65,12 @@ async def list_public_pastes(
 ):
     response = await pastes_service.list_public_pages(page, session)
     return response
+
+@pastes_router.get("/me/pastes")
+async def get_user_pastes(
+    page: int = Query(1,ge=1),
+    user_uid: uuid.UUID | None = Depends(get_current_user_uid),
+    session: AsyncSession = Depends(get_session)
+):
+    response = await pastes_service.get_user_pastes(page, user_uid,session)
+    return response

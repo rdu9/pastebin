@@ -163,7 +163,13 @@ class PasteService:
     async def list_public_pages(self, page: int, session: AsyncSession):
 
         statement = (
-            select(Paste.uid, Paste.title, Paste.language, Paste.created_at, Paste.size_bytes)
+            select(
+                Paste.uid,
+                Paste.title,
+                Paste.language,
+                Paste.created_at,
+                Paste.size_bytes,
+            )
             .where(
                 Paste.visibility == Visibility.public,
                 or_(
@@ -175,6 +181,40 @@ class PasteService:
             .offset((page - 1) * PAGE_SIZE)
             .limit(PAGE_SIZE)
         )
+        result = await session.exec(statement)
+        pastes = result.all()
+        if not pastes:
+            return []
+
+        return [
+            {paste.uid, paste.title, paste.language, paste.created_at, paste.size_bytes}
+            for paste in pastes
+        ]
+
+    async def get_user_pastes(
+        self, page: int, user_uid: uuid.UUID, session: AsyncSession
+    ):
+
+        statement = (
+            select(
+                Paste.uid,
+                Paste.title,
+                Paste.language,
+                Paste.created_at,
+                Paste.size_bytes,
+            )
+            .where(
+                Paste.owner_uid == user_uid,
+                or_(
+                    Paste.expires_at.is_(None),
+                    Paste.expires_at > datetime.now(timezone.utc),
+                ),
+            )
+            .order_by(Paste.created_at.desc())
+            .offset((page - 1) * PAGE_SIZE)
+            .limit(PAGE_SIZE)
+        )
+
         result = await session.exec(statement)
         pastes = result.all()
         if not pastes:
