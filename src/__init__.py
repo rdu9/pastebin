@@ -33,6 +33,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# HEALTH ENDPOINT
+
+@app.get("/healthz", tags=["Health"])
+async def healthz():
+    return {"status": "ok"}
+
 # STATIC MOUNT
 
 
@@ -44,3 +50,4 @@ register_all_errors(app)
 
 app.include_router(auth_router, prefix=f"/api/{version}/auth", tags = ["Auth"])
 app.include_router(pastes_router, prefix=f"/api/{version}/pastes", tags = ["Paste"])
+
