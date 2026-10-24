@@ -5,12 +5,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from .service import PasteService
 from src.auth.dependencies import get_optional_user_uid,get_current_user_uid
 import uuid
+from src.ratelimit import pastes_ratelimit
 
 pastes_router = APIRouter()
 pastes_service = PasteService()
 
 
-@pastes_router.post("/")
+@pastes_router.post("/",dependencies=[Depends(pastes_ratelimit)])
 async def create_paste(
     payload: PasteCreateModel,
     user_uid: uuid.UUID | None = Depends(get_optional_user_uid),

@@ -6,6 +6,7 @@ from .service import UserService
 from fastapi.responses import JSONResponse
 from .dependencies import get_current_user_uid
 import uuid
+from src.ratelimit import login_ratelimit, register_ratelimit
 
 ## define routers , and service
 
@@ -14,7 +15,7 @@ auth_router = APIRouter()
 
 ## the actual endpoints
 
-@auth_router.post("/login")
+@auth_router.post("/login", dependencies=[Depends(login_ratelimit)])
 async def login_user(
     payload: UserLoginModel, session: AsyncSession = Depends(get_session)
 ):
@@ -52,7 +53,7 @@ async def login_user(
     return response
 
 
-@auth_router.post("/register")
+@auth_router.post("/register", dependencies=[Depends(register_ratelimit)])
 async def create_user(
     payload: UserCreateModel, session: AsyncSession = Depends(get_session)
 ):
