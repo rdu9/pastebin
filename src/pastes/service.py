@@ -138,7 +138,7 @@ class PasteService:
         # reuse the view paste function. all the checks are the same, but if burn-after-reading is enabled, raw content is not available
 
         response_paste = await self.view_paste(paste_uid, user_uid, session)
-        if not response_paste.burn_after_reading:
+        if response_paste.burn_after_reading:
             raise Forbidden("Burn-after-reading paste. Use /reveal to see the content.")
 
         return PlainTextResponse(
@@ -150,7 +150,9 @@ class PasteService:
     async def delete_paste(
         self, paste_uid: uuid.UUID, user_uid: uuid.UUID, session: AsyncSession
     ):
-        statement = select(Paste).where(Paste.uid == paste_uid)
+        statement = select(Paste).where(
+            Paste.uid == paste_uid, Paste.owner_uid == user_uid
+        )
         result = await session.exec(statement)
         paste_to_delete = result.one_or_none()
         if not paste_to_delete:
@@ -187,7 +189,13 @@ class PasteService:
             return []
 
         return [
-            {paste.uid, paste.title, paste.language, paste.created_at, paste.size_bytes}
+            {
+                "uid": paste.uid,
+                "title": paste.title,
+                "language": paste.language,
+                "created_at": paste.created_at,
+                "size_bytes": paste.size_bytes,
+            }
             for paste in pastes
         ]
 
@@ -221,6 +229,12 @@ class PasteService:
             return []
 
         return [
-            {paste.uid, paste.title, paste.language, paste.created_at, paste.size_bytes}
+            {
+                "uid": paste.uid,
+                "title": paste.title,
+                "language": paste.language,
+                "created_at": paste.created_at,
+                "size_bytes": paste.size_bytes,
+            }
             for paste in pastes
         ]

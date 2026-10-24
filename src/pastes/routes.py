@@ -56,7 +56,7 @@ async def delete_paste(
     user_uid: uuid.UUID | None = Depends(get_current_user_uid),
     session: AsyncSession = Depends(get_session)
 ):
-    response = await pastes_service.delete(paste_uid,user_uid,session)
+    response = await pastes_service.delete_paste(paste_uid,user_uid,session)
     return response
 
 @pastes_router.get("/")
