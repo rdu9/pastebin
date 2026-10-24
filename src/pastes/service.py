@@ -4,10 +4,12 @@ from sqlmodel import select, or_
 import uuid
 from datetime import datetime, timedelta, timezone
 from .schemas import PasteCreateModel
-from starlette.concurrency import run_in_threadpool
 from src.errors import NotFound, Forbidden, TooLarge
+from fastapi.responses import PlainTextResponse
 
+# define global variables
 MAX_PASTE_BYTES = 512 * 1024
+PAGE_SIZE = 20
 
 EXPIRY_DURATIONS = {
     "1h": timedelta(hours=1),
@@ -97,14 +99,18 @@ class PasteService:
 
         # fetch the burn-after-reading paste
 
-        statement = select(Paste).where(
-            Paste.uid == paste_uid,
-            Paste.burn_after_reading == True,
-            or_(
-                Paste.expires_at.is_(None),
-                Paste.expires_at > datetime.now(timezone.utc),
-            ),
-        ).with_for_update()
+        statement = (
+            select(Paste)
+            .where(
+                Paste.uid == paste_uid,
+                Paste.burn_after_reading == True,
+                or_(
+                    Paste.expires_at.is_(None),
+                    Paste.expires_at > datetime.now(timezone.utc),
+                ),
+            )
+            .with_for_update()
+        )
         result = await session.exec(statement)
         response_paste = result.one_or_none()
         if not response_paste:
@@ -124,3 +130,57 @@ class PasteService:
         await session.commit()
 
         return response_paste
+
+    async def get_raw_paste(
+        self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession
+    ):
+
+        # reuse the view paste function. all the checks are the same, but if burn-after-reading is enabled, raw content is not available
+
+        response_paste = await self.view_paste(paste_uid, user_uid, session)
+        if not response_paste.burn_after_reading:
+            raise Forbidden("Burn-after-reading paste. Use /reveal to see the content.")
+
+        return PlainTextResponse(
+            response_paste.content,
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+
+    # user must be logged in here, in order to delete any paste
+    async def delete_paste(
+        self, paste_uid: uuid.UUID, user_uid: uuid.UUID, session: AsyncSession
+    ):
+        statement = select(Paste).where(Paste.uid == paste_uid)
+        result = await session.exec(statement)
+        paste_to_delete = result.one_or_none()
+        if not paste_to_delete:
+            raise NotFound()
+
+        await session.delete(paste_to_delete)
+        await session.commit()
+        return {}
+
+    async def list_public_pages(self, page: int, session: AsyncSession):
+
+        statement = (
+            select(Paste.uid, Paste.title, Paste.language, Paste.created_at, Paste.size_bytes)
+            .where(
+                Paste.visibility == Visibility.public,
+                or_(
+                    Paste.expires_at.is_(None),
+                    Paste.expires_at > datetime.now(timezone.utc),
+                ),
+            )
+            .order_by(Paste.created_at.desc())
+            .offset((page - 1) * PAGE_SIZE)
+            .limit(PAGE_SIZE)
+        )
+        result = await session.exec(statement)
+        pastes = result.all()
+        if not pastes:
+            return []
+
+        return [
+            {paste.uid, paste.title, paste.language, paste.created_at, paste.size_bytes}
+            for paste in pastes
+        ]

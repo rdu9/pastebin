@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, Query
 from src.db.main import get_session
 from .schemas import PasteCreateModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 from .service import PasteService
-from fastapi.responses import JSONResponse
-from src.auth.dependencies import get_optional_user_uid
+from src.auth.dependencies import get_optional_user_uid,get_current_user_uid
 import uuid
 
 pastes_router = APIRouter()
@@ -27,7 +26,7 @@ async def view_paste(
     user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
     session: AsyncSession = Depends(get_session),
 ):
-    response = await pastes_service.view_paste(paste_uid,user_uid,session)
+    response = await pastes_service.view_paste(paste_uid, user_uid, session)
     return response
 
 
@@ -35,7 +34,34 @@ async def view_paste(
 async def view_reveal_paste(
     paste_uid: uuid.UUID,
     user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.reveal_paste(paste_uid, user_uid, session)
+    return response
+
+
+@pastes_router.get("/{paste_uid}/raw")
+async def get_raw_paste(
+    paste_uid: uuid.UUID,
+    user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.get_raw_paste(paste_uid,user_uid,session)
+    return response
+
+@pastes_router.delete("/{paste_uid}")
+async def delete_paste(
+    paste_uid: uuid.UUID,
+    user_uid: uuid.UUID | None = Depends(get_current_user_uid),
     session: AsyncSession = Depends(get_session)
 ):
-    response = await pastes_service.reveal_paste(paste_uid,user_uid,session)
+    response = await pastes_service.delete(paste_uid,user_uid,session)
+    return response
+
+@pastes_router.get("/")
+async def list_public_pastes(
+    page: int = Query(1, ge=1),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.list_public_pages(page, session)
     return response
