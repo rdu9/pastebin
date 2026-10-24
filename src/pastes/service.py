@@ -210,6 +210,8 @@ class PasteService:
                 Paste.language,
                 Paste.created_at,
                 Paste.size_bytes,
+                Paste.visibility,
+                Paste.expires_at
             )
             .where(
                 Paste.owner_uid == user_uid,
@@ -225,8 +227,6 @@ class PasteService:
 
         result = await session.exec(statement)
         pastes = result.all()
-        if not pastes:
-            return []
 
         return [
             {

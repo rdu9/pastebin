@@ -79,6 +79,3 @@ async def me(
 ):
     return await user_service.get_user_by_uid(user_uid, session)
 
-@auth_router.get("/")
-async def healthz():
-    return {"status":"ok"}
