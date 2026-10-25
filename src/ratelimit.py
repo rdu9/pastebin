@@ -12,7 +12,6 @@ from src.errors import RateLimited
 
 logger = structlog.get_logger()
 
-
 class RateLimiter:
     def __init__(self, limit: int, window: int, name: str):
         self.limit = limit

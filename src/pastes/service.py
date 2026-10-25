@@ -185,9 +185,7 @@ class PasteService:
         )
         result = await session.exec(statement)
         pastes = result.all()
-        if not pastes:
-            return []
-
+        
         return [
             {
                 "uid": paste.uid,

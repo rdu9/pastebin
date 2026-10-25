@@ -20,7 +20,6 @@ async def create_paste(
     response = await pastes_service.create_paste(payload, user_uid, session)
     return response
 
-
 @pastes_router.get("/{paste_uid}")
 async def view_paste(
     paste_uid: uuid.UUID,

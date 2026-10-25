@@ -3,6 +3,7 @@
 *.pem
 *.key
 cookies.txt
+garage.toml
 
 # python
 .venv/
