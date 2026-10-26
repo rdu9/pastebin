@@ -11,6 +11,13 @@ class Settings(BaseSettings):
 
     COOKIE_SECURE: bool = False
 
+    S3_ENDPOINT: str
+    S3_PUBLIC_ENDPOINT: str
+    S3_REGION: str
+    S3_ACCESS_KEY: str
+    S3_SECRET_KEY: str
+    S3_BUCKET: str
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore"
