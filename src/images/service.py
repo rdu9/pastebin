@@ -7,39 +7,67 @@ from datetime import datetime, timezone
 from .schemas import UploadUrlRequest, MAX_IMAGE_BYTES
 from src.errors import NotFound
 from src.storage import s3_public
+from botocore.exceptions import ClientError
+from src.storage import s3_internal
+from starlette.concurrency import run_in_threadpool
 
 
 class ImageService:
 
-    async def configure_image(self,payload: UploadUrlRequest,image_uid: uuid.UUID, object_key: str,paste_uid: uuid.UUID,session: AsyncSession):
+    ## sevices that talk straight to garage api
+
+    async def configure_image(
+        self,
+        payload: UploadUrlRequest,
+        image_uid: uuid.UUID,
+        object_key: str,
+        paste_uid: uuid.UUID,
+        session: AsyncSession,
+    ):
         new_image = Image(
             uid=image_uid,
             paste_uid=paste_uid,
             object_key=object_key,
-            content_type= payload.content_type,
+            content_type=payload.content_type,
             size_bytes=payload.size_bytes,
-        ) 
+        )
 
         session.add(new_image)
         await session.commit()
 
         post = s3_public.generate_presigned_post(
-        Bucket=Config.S3_BUCKET,
-        Key=object_key,
-        Fields={"Content-Type": payload.content_type},
-        Conditions=[
-            ["content-length-range", 1, MAX_IMAGE_BYTES],
-            {"Content-Type": payload.content_type},
-        ],
-        ExpiresIn=300,
+            Bucket=Config.S3_BUCKET,
+            Key=object_key,
+            Fields={"Content-Type": payload.content_type},
+            Conditions=[
+                ["content-length-range", 1, MAX_IMAGE_BYTES],
+                {"Content-Type": payload.content_type},
+            ],
+            ExpiresIn=300,
         )
 
-        return {"image_uid": str(image_uid), "url": post["url"], "fields": post["fields"]}
-    
+        return {
+            "image_uid": str(image_uid),
+            "url": post["url"],
+            "fields": post["fields"],
+        }
 
+    async def check_if_file_exists_in_garage(self, found_image: Image ,object_key: str, session: AsyncSession):
+        try:
+            head = await run_in_threadpool(
+                s3_internal.head_object, Bucket=Config.S3_BUCKET, Key=object_key
+            )
+            found_image.size_bytes = head["ContentLength"]
+            found_image.status = ImageStatus.ready
+            await session.commit()
+            return {"image_uid":str(found_image.uid),"status":found_image.status}
+        except ClientError:
+            raise NotFound("Upload not found. Upload the file first.")
+
+    ## api services
 
     async def create_upload(
-        self,payload: UploadUrlRequest, user_uid: uuid.UUID, session: AsyncSession
+        self, payload: UploadUrlRequest, user_uid: uuid.UUID, session: AsyncSession
     ):
         # fetch the paste
 
@@ -60,7 +88,30 @@ class ImageService:
 
         image_uid = uuid.uuid4()
         object_key = f"images/{payload.paste_uid}/{image_uid}"
-        response = await self.configure_image(payload,image_uid,object_key,found_paste.uid,session)
+        response = await self.configure_image(
+            payload, image_uid, object_key, found_paste.uid, session
+        )
         return response
 
+    async def complete_upload(
+        self, image_uid: uuid.UUID, user_uid: uuid.UUID, session: AsyncSession
+    ):
+        statement = select(Image).join(Paste, Paste.uid == Image.paste_uid).where(
+            Image.uid == image_uid,
+            Paste.owner_uid == user_uid,
+            Image.status == ImageStatus.pending,
+        )
+        result = await session.exec(statement)
+        found_image = result.one_or_none()
+        if not found_image:
+            raise NotFound()
 
+
+        # check if the image was found inside of garage,and let it return the data / raise the error
+
+        image_object_key = found_image.object_key
+
+        image_in_garage = await self.check_if_file_exists_in_garage(found_image,image_object_key,session)
+        return image_in_garage
+
+        

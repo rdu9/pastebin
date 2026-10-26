@@ -1,3 +1,6 @@
+import httpx
+
+
 async def test_create_paste_and_image_same_user(alice):
     # create the test paste
 
@@ -111,7 +114,74 @@ async def test_create_image_with_wrong_size_bytes(alice):
 
     r = await alice.post(
         "/api/v1/images/upload-url",
-        json={"paste_uid": paste_uid, "content_type": "image/png", "size_bytes": 6 * 1024 * 1024},
+        json={
+            "paste_uid": paste_uid,
+            "content_type": "image/png",
+            "size_bytes": 6 * 1024 * 1024,
+        },
     )
 
     assert r.status_code == 422
+
+
+# records the existece of the image in the database
+
+async def get_ticket(user) -> dict:
+    p = await user.post("/api/v1/pastes/", json={"content": "the_content"})
+    assert p.status_code == 200
+
+    r = await user.post(
+        "/api/v1/images/upload-url",
+        json={"paste_uid": p.json()["uid"], "content_type": "image/png", "size_bytes": 256},
+    )
+    assert r.status_code == 200
+    return r.json()
+
+# actually uploads the image
+
+async def upload_to_garage(ticket: dict):
+    async with httpx.AsyncClient() as s3:
+        up = await s3.post(
+            ticket["url"],
+            data=ticket["fields"],
+            files={"file": ("a.png", b"x" * 256, "image/png")},
+        )
+    assert up.status_code == 204, up.text
+
+# run the test, happy / unhappy paths
+
+async def test_complete_after_upload(alice):
+    ticket = await get_ticket(alice)
+    await upload_to_garage(ticket)
+
+    r = await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+
+    assert r.status_code == 200
+    assert r.json()["status"] == "ready"
+
+
+async def test_complete_twice(alice):
+    ticket = await get_ticket(alice)
+    await upload_to_garage(ticket)
+    await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+
+    r = await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+
+    assert r.status_code == 404
+
+
+async def test_complete_without_upload(alice):
+    ticket = await get_ticket(alice)
+
+    r = await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+
+    assert r.status_code == 404
+
+
+async def test_another_user_completes_a_users_image(alice, bob):
+    ticket = await get_ticket(alice)
+    await upload_to_garage(ticket)
+
+    r = await bob.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+
+    assert r.status_code == 404

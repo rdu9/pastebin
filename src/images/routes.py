@@ -19,3 +19,12 @@ async def upload_image(
 ):
     result = await image_service.create_upload(payload,user_uid,session)
     return result
+
+@image_route.post("/{image_uid}/complete")
+async def complete_image_upload(
+    image_uid: uuid.UUID,
+    user_uid: uuid.UUID = Depends(get_current_user_uid),
+    session: AsyncSession = Depends(get_session)
+):
+    result = await image_service.complete_upload(image_uid,user_uid,session)
+    return result

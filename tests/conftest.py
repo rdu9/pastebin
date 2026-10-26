@@ -13,6 +13,7 @@ os.environ["DATABASE_URL"] = os.environ.get(
 )
 os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL", "redis://localhost:6380/15")
 os.environ["COOKIE_SECURE"] = "false"
+os.environ["S3_ENDPOINT"] = os.environ.get("TEST_S3_ENDPOINT", "http://localhost:3900")
 
 import asyncpg
 import pytest
