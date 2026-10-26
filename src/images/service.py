@@ -1,4 +1,4 @@
-from src.db.models import Paste, Image, ImageStatus
+from src.db.models import Paste, Image, ImageStatus, Visibility
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, or_
 import uuid
@@ -10,6 +10,7 @@ from src.storage import s3_public
 from botocore.exceptions import ClientError
 from src.storage import s3_internal
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import RedirectResponse
 
 
 class ImageService:
@@ -64,6 +65,14 @@ class ImageService:
         except ClientError:
             raise NotFound("Upload not found. Upload the file first.")
 
+    async def fetch_the_image(self, object_key: str):
+        url = s3_public.generate_presigned_url(
+            "get_object",
+            Params = {"Bucket": Config.S3_BUCKET, "Key": object_key},
+            ExpiresIn=300,
+        )
+        return RedirectResponse(url,status_code=302)
+
     ## api services
 
     async def create_upload(
@@ -114,4 +123,40 @@ class ImageService:
         image_in_garage = await self.check_if_file_exists_in_garage(found_image,image_object_key,session)
         return image_in_garage
 
+    async def view_image(self,image_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession):
+
+        # fetch both the image and the paste in one query, and then unpack them into 2 variables
+        
+        statement = (
+            select(Image,Paste)
+            .join(Paste, Paste.uid == Image.paste_uid)
+            .where(
+                Image.uid == image_uid,
+                Image.status == ImageStatus.ready,
+                or_(
+                    Paste.expires_at.is_(None),
+                    Paste.expires_at > datetime.now(timezone.utc)
+                )
+            )
+        )
+
+        result = await session.exec(statement)
+        row = result.first()
+        if not row:
+            raise NotFound()
+        image, paste = row
+
+        # check if the paste and image are good
+
+        if paste.visibility == Visibility.private and paste.owner_uid != user_uid:
+            raise NotFound()
+
+        # burn-after-reading pastes are out of this scope, because they would bypas the /reveal endpoint speicifically made for them
+        if paste.burn_after_reading:
+            raise NotFound()
+
+        object_key = image.object_key
+
+        fetched_image = await self.fetch_the_image(object_key)
+        return fetched_image
         

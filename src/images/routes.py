@@ -8,6 +8,7 @@ import uuid
 from src.ratelimit import images_upload_ratelimit
 
 image_route = APIRouter()
+image_view_route = APIRouter()
 image_service = ImageService()
 
 
@@ -27,4 +28,13 @@ async def complete_image_upload(
     session: AsyncSession = Depends(get_session)
 ):
     result = await image_service.complete_upload(image_uid,user_uid,session)
+    return result
+
+@image_view_route.get("/i/{image_uid}")
+async def view_image(
+    image_uid: uuid.UUID,
+    user_uid: uuid.UUID = Depends(get_optional_user_uid),
+    session: AsyncSession = Depends(get_session)
+):
+    result = await image_service.view_image(image_uid,user_uid,session)
     return result
