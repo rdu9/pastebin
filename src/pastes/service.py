@@ -1,4 +1,4 @@
-from src.db.models import Paste, Visibility
+from src.db.models import Paste, Visibility, Image
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, or_
 import uuid
@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 from .schemas import PasteCreateModel
 from src.errors import NotFound, Forbidden, TooLarge
 from fastapi.responses import PlainTextResponse
+from starlette.concurrency import run_in_threadpool
+from src.storage import s3_internal
+from src.config import Config
 
 # define global variables
 MAX_PASTE_BYTES = 512 * 1024
@@ -25,6 +28,19 @@ def calculate_expires_in(expires_in: str) -> datetime | None:
 
 
 class PasteService:
+
+    async def delete_with_images(self, paste: Paste, session: AsyncSession):
+        keys = (
+            await session.exec(
+                select(Image.object_key).where(Image.paste_uid == paste.uid)
+            )
+        ).all()
+        await session.delete(paste)
+        await session.commit()
+        for key in keys:
+            await run_in_threadpool(
+                s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=key
+            )
 
     async def create_paste(
         self,
@@ -126,8 +142,7 @@ class PasteService:
 
         # delete the paste
 
-        await session.delete(response_paste)
-        await session.commit()
+        await self.delete_with_images(response_paste,session)
 
         return response_paste
 
@@ -158,8 +173,8 @@ class PasteService:
         if not paste_to_delete:
             raise NotFound()
 
-        await session.delete(paste_to_delete)
-        await session.commit()
+        response = await self.delete_with_images(paste_to_delete,session)
+
         return {}
 
     async def list_public_pages(self, page: int, session: AsyncSession):
@@ -185,7 +200,7 @@ class PasteService:
         )
         result = await session.exec(statement)
         pastes = result.all()
-        
+
         return [
             {
                 "uid": paste.uid,
@@ -209,7 +224,7 @@ class PasteService:
                 Paste.created_at,
                 Paste.size_bytes,
                 Paste.visibility,
-                Paste.expires_at
+                Paste.expires_at,
             )
             .where(
                 Paste.owner_uid == user_uid,

@@ -1,5 +1,10 @@
 import httpx
 from src.db.models import Visibility
+from src.storage import s3_internal
+from botocore.exceptions import ClientError
+import pytest
+from src.config import Config
+
 
 
 async def test_create_paste_and_image_same_user(alice):
@@ -257,3 +262,39 @@ async def test_pending_image_unhappy_path(alice):
                 f"/i/{image_uid}"
             )
     assert p.status_code == 404
+
+
+async def test_if_the_images_get_deleted_in_garage(alice):
+
+    # upload and complete an image
+
+
+    p = await alice.post("/api/v1/pastes/", json={"content": "the_content","visibility":Visibility.public})
+    assert p.status_code == 200
+
+    paste_uid = p.json()["uid"]
+
+    r = await alice.post(
+        "/api/v1/images/upload-url",
+        json={"paste_uid": p.json()["uid"], "content_type": "image/png", "size_bytes": 256},
+    )
+    assert r.status_code == 200
+    response = r.json()
+
+    await upload_to_garage(response)
+
+    image_uid = response["image_uid"]    
+    r = await alice.post(
+        f"/api/v1/images/{image_uid}/complete"
+    )
+    assert r.status_code == 200
+
+    object_key = response['fields']['key']
+
+    # delete the paste and check if the image is removed fully
+
+    b = await alice.delete(f"/api/v1/pastes/{paste_uid}")
+    
+    assert b.status_code == 200 
+    with pytest.raises(ClientError):
+       s3_internal.head_object(Bucket=Config.S3_BUCKET, Key=object_key)
