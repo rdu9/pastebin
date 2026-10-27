@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
 
+    CELERY_URL: str
+
     DOMAIN: str
 
     COOKIE_SECURE: bool = False

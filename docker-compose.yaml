@@ -88,6 +88,18 @@ services:
     ports:
       - "127.0.0.1:3900:3900"
 
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A src.celery worker --loglevel=info --concurrency=2
+    mem_limit: 400m
+    depends_on:
+     redis:
+      condition: service_healthy
+     db:
+      condition: service_healthy
+
 volumes:
   pgdata:
   redisdata:
