@@ -1,5 +1,5 @@
 from src.db.models import User, LoginSession
-from fastapi import HTTPException, Request
+from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.responses import JSONResponse
 from sqlmodel import select
@@ -14,7 +14,7 @@ from .security import (
     hash_password,
 )
 from starlette.concurrency import run_in_threadpool
-from src.errors import NotFound, NotAuthenticated
+from src.errors import NotFound, NotAuthenticated, AlreadyExists, InvalidCredentials
 
 
 class UserService:
@@ -112,7 +112,7 @@ class UserService:
         #check if the user exists
         
         if await self.user_exists(user_email, session):
-            raise HTTPException(status_code=409, detail="User already exists")
+            raise AlreadyExists()
 
         # hash the user password
 
