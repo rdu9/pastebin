@@ -30,17 +30,17 @@ def calculate_expires_in(expires_in: str) -> datetime | None:
 class PasteService:
 
     async def delete_with_images(self, paste: Paste, session: AsyncSession):
-        keys = (
+        rows = (
             await session.exec(
-                select(Image.object_key).where(Image.paste_uid == paste.uid)
+                select(Image.object_key, Image.thumb_key).where(Image.paste_uid == paste.uid)
             )
         ).all()
         await session.delete(paste)
         await session.commit()
-        for key in keys:
-            await run_in_threadpool(
-                s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=key
-            )
+        for row in rows:
+         await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.object_key)
+         if row.thumb_key is not None:
+             await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.thumb_key)
 
     async def create_paste(
         self,
