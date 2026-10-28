@@ -38,9 +38,9 @@ class PasteService:
         await session.delete(paste)
         await session.commit()
         for row in rows:
-         await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.object_key)
-         if row.thumb_key is not None:
-             await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.thumb_key)
+            await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.object_key)
+            if row.thumb_key is not None:
+                await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.thumb_key)
 
     async def create_paste(
         self,

@@ -13,5 +13,6 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     task_acks_late=True,
-    worker_prefetch_multiplier=1
+    worker_prefetch_multiplier=1,
+    worker_redirect_stdouts=False,
 )
