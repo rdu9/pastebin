@@ -1,4 +1,4 @@
-from src.celery import celery_app
+from src.celery_app import celery_app
 from src.sync import get_sync_session
 from src.db.models import Image, ImageStatus
 from sqlmodel import select
