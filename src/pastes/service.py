@@ -173,7 +173,7 @@ class PasteService:
         if not paste_to_delete:
             raise NotFound()
 
-        response = await self.delete_with_images(paste_to_delete,session)
+        await self.delete_with_images(paste_to_delete,session)
 
         return {}
 

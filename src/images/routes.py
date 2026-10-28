@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from src.db.main import get_session
 from .schemas import UploadUrlRequest
 from sqlmodel.ext.asyncio.session import AsyncSession
