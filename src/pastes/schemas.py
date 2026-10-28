@@ -4,7 +4,7 @@ from typing import Literal
 
 
 
-class PasteCreateModel(BaseModel):
+class PasteCreateModel(BaseModel,extra="forbid"):
     title: str | None = None
     content: str = Field(min_length=1,max_length=512_000)
     language: str | None = None
