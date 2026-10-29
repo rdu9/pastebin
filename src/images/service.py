@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 from src.storage import s3_internal
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import RedirectResponse
-
+from src.tasks import process_image
 
 class ImageService:
 
@@ -53,15 +53,15 @@ class ImageService:
             "fields": post["fields"],
         }
 
-    async def check_if_file_exists_in_garage(self, found_image: Image ,object_key: str, session: AsyncSession):
+    async def confirm_and_queue(self, found_image: Image ,object_key: str, session: AsyncSession):
         try:
             head = await run_in_threadpool(
                 s3_internal.head_object, Bucket=Config.S3_BUCKET, Key=object_key
             )
             found_image.size_bytes = head["ContentLength"]
-            found_image.status = ImageStatus.ready
             await session.commit()
-            return {"image_uid":str(found_image.uid),"status":found_image.status}
+            process_image.delay(str(found_image.uid))
+            return {"image_uid": str(found_image.uid), "status": "processing"}
         except ClientError:
             raise NotFound("Upload not found. Upload the file first.")
 
@@ -120,7 +120,7 @@ class ImageService:
 
         image_object_key = found_image.object_key
 
-        image_in_garage = await self.check_if_file_exists_in_garage(found_image,image_object_key,session)
+        image_in_garage = await self.confirm_and_queue(found_image,image_object_key,session)
         return image_in_garage
 
     async def view_image(self,image_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession):

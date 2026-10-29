@@ -4,7 +4,13 @@ from src.storage import s3_internal
 from botocore.exceptions import ClientError
 import pytest
 from src.config import Config
+from io import BytesIO
+from PIL import Image as PILImage
 
+def tiny_png() -> bytes:
+    buf = BytesIO()
+    PILImage.new("RGB", (10, 10), "red").save(buf, format="PNG")
+    return buf.getvalue()
 
 
 async def test_create_paste_and_image_same_user(alice):
@@ -145,12 +151,14 @@ async def get_ticket(user) -> dict:
 
 # actually uploads the image
 
-async def upload_to_garage(ticket: dict):
+async def upload_to_garage(ticket: dict, content: bytes | None = None):
+    if content is None:
+        content = tiny_png()
     async with httpx.AsyncClient() as s3:
         up = await s3.post(
             ticket["url"],
             data=ticket["fields"],
-            files={"file": ("a.png", b"x" * 256, "image/png")},
+            files={"file": ("a.png", content, "image/png")},
         )
     assert up.status_code == 204, up.text
 
@@ -163,7 +171,11 @@ async def test_complete_after_upload(alice):
     r = await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
 
     assert r.status_code == 200
-    assert r.json()["status"] == "ready"
+    assert r.json()["status"] == "processing"
+
+    p = await alice.get(f"/i/{ticket['image_uid']}")
+
+    assert p.status_code == 302
 
 
 async def test_complete_twice(alice):
@@ -233,7 +245,7 @@ async def test_view_image_happy_path(alice):
         v = await s3.get(location)
     
     assert v.status_code == 200
-    assert v.content == b"x" * 256
+    assert PILImage.open(BytesIO(v.content)).format == "PNG"
 
 async def test_view_image_unhappy_path(alice,bob):
     response = await get_ticket_with_visibility(alice,visibility=Visibility.private)
@@ -298,3 +310,14 @@ async def test_if_the_images_get_deleted_in_garage(alice):
     assert b.status_code == 200 
     with pytest.raises(ClientError):
        s3_internal.head_object(Bucket=Config.S3_BUCKET, Key=object_key)
+
+
+async def test_fake_image_is_not_viewable(alice):
+    ticket = await get_ticket(alice)
+    await upload_to_garage(ticket, b"not an image")
+
+    r = await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+    assert r.status_code == 200
+
+    p = await alice.get(f"/i/{ticket['image_uid']}")
+    assert p.status_code == 404

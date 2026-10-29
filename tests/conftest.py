@@ -24,7 +24,10 @@ from sqlmodel import SQLModel
 from src import app
 from src.db.main import async_engine
 from src.db.redis import redis_client
-import src.db.models
+from src.celery_app import celery_app
+
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
 
 TEST_PASSWORD = "correct-horse-battery"
 
