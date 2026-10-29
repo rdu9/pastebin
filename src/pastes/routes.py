@@ -21,12 +21,12 @@ async def create_paste(
     return response
 
 @pastes_router.get("/{paste_uid}")
-async def view_paste(
+async def view_paste_with_images(
     paste_uid: uuid.UUID,
     user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
     session: AsyncSession = Depends(get_session),
 ):
-    response = await pastes_service.view_paste(paste_uid, user_uid, session)
+    response = await pastes_service.view_paste_with_images(paste_uid, user_uid, session)
     return response
 
 
@@ -74,3 +74,4 @@ async def get_user_pastes(
 ):
     response = await pastes_service.get_user_pastes(page, user_uid,session)
     return response
+

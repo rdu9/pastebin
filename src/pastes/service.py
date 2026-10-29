@@ -1,4 +1,4 @@
-from src.db.models import Paste, Visibility, Image
+from src.db.models import Paste, Visibility, Image, ImageStatus
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, or_
 import uuid
@@ -108,6 +108,24 @@ class PasteService:
             response_paste.content = None
 
         return response_paste
+
+    async def view_paste_with_images(self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession):
+
+        paste = await self.view_paste(paste_uid,user_uid,session)
+
+        if paste.burn_after_reading:
+            image_uids = []
+        else:
+            image_uids = (
+                await session.exec(
+                    select(Image.uid).where(
+                        Image.paste_uid == paste_uid,
+                        Image.status == ImageStatus.ready
+                    )
+                )
+            ).all()
+
+        return {**paste.model_dump(), "images": [str(uid) for uid in image_uids]}
 
     async def reveal_paste(
         self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession

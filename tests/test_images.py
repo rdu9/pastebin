@@ -147,7 +147,7 @@ async def get_ticket(user) -> dict:
         json={"paste_uid": p.json()["uid"], "content_type": "image/png", "size_bytes": 256},
     )
     assert r.status_code == 200
-    return r.json()
+    return {**r.json(), "paste_uid": p.json()["uid"]}
 
 # actually uploads the image
 
@@ -348,3 +348,22 @@ async def test_view_thumbnail(alice):
     
 
 
+
+async def test_paste_lists_its_ready_images(alice):
+    ticket = await get_ticket(alice)
+    await upload_to_garage(ticket)
+    await alice.post(f"/api/v1/images/{ticket['image_uid']}/complete")
+
+    r = await alice.get(f"/api/v1/pastes/{ticket['paste_uid']}")
+
+    assert r.status_code == 200
+    assert r.json()["images"] == [ticket["image_uid"]]
+
+
+async def test_paste_does_not_list_pending_images(alice):
+    ticket = await get_ticket(alice)
+
+    r = await alice.get(f"/api/v1/pastes/{ticket['paste_uid']}")
+
+    assert r.status_code == 200
+    assert r.json()["images"] == []
