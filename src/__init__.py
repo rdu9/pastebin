@@ -7,6 +7,7 @@ from src.pastes.routes import pastes_router
 from src.images.routes import image_route
 from src.images.routes import image_view_route
 from src.errors import register_all_errors
+from src.middleware import RequestID
 
 ### readyz imports / functions
 
@@ -64,9 +65,7 @@ app = FastAPI(
 # static mount
 
 
-# health endpoints for kubernetez, healthz for liveness , readyz for readiness
-
-# HEALTH ENDPOINTS
+# health endpoints for k8s: healthz for liveness and readyz for readiness
 
 @app.get("/healthz", tags=["Health"])
 async def healthz():
@@ -91,6 +90,7 @@ async def readyz():
 # register all errors / middleware
 
 register_all_errors(app)
+app.add_middleware(RequestID)
 
 # register all routes
 

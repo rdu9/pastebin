@@ -43,3 +43,10 @@ async def test_readyz(client):
 
     assert r.status_code == 200
     assert r.json() == {"postgres": "ok", "redis": "ok", "garage": "ok"}
+
+async def test_request_id_header(client):
+    r = await client.get("/healthz")
+    assert "x-request-id" in r.headers
+
+    r = await client.get("/healthz", headers={"X-Request-ID": "abc123"})
+    assert r.headers["x-request-id"] == "abc123"
