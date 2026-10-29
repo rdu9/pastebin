@@ -38,5 +38,8 @@ async def test_email_register_twice(client):
     assert r.status_code == 409
     
 
+async def test_readyz(client):
+    r = await client.get("/readyz")
 
-
+    assert r.status_code == 200
+    assert r.json() == {"postgres": "ok", "redis": "ok", "garage": "ok"}

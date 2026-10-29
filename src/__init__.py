@@ -8,6 +8,29 @@ from src.images.routes import image_route
 from src.images.routes import image_view_route
 from src.errors import register_all_errors
 
+### readyz imports / functions
+
+import asyncio
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from starlette.concurrency import run_in_threadpool
+
+from src.db.main import async_engine
+from src.db.redis import redis_client
+from src.storage import s3_internal
+
+
+async def check_db():
+    async with async_engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+
+async def check_redis():
+    await redis_client.ping()
+
+async def check_garage():
+    await run_in_threadpool(s3_internal.head_bucket, Bucket=Config.S3_BUCKET)
+
+
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
@@ -38,13 +61,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# HEALTH ENDPOINT
+# static mount
+
+
+# health endpoints for kubernetez, healthz for liveness , readyz for readiness
+
+# HEALTH ENDPOINTS
 
 @app.get("/healthz", tags=["Health"])
 async def healthz():
     return {"status": "ok"}
 
-# STATIC MOUNT
+@app.get("/readyz", tags=["Health"])
+async def readyz():
+    checks = {"postgres": check_db, "redis": check_redis, "garage": check_garage}
+    results = {}
+    for name, check in checks.items():
+        try:
+            await asyncio.wait_for(check(), timeout=2)
+            results[name] = "ok"
+        except Exception as e:
+            logger.warning("readyz.faild", dependency=name, error=repr(e))
+            results[name] = "down"
+
+    status_code = 200 if all(v=="ok" for v in results.values()) else 503
+    return JSONResponse(results, status_code=status_code)
 
 
 # register all errors / middleware
