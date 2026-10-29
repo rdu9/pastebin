@@ -33,8 +33,9 @@ async def complete_image_upload(
 @image_view_route.get("/i/{image_uid}")
 async def view_image(
     image_uid: uuid.UUID,
+    thumb: bool = False,
     user_uid: uuid.UUID = Depends(get_optional_user_uid),
     session: AsyncSession = Depends(get_session)
 ):
-    result = await image_service.view_image(image_uid,user_uid,session)
+    result = await image_service.view_image(image_uid,thumb,user_uid,session)
     return result

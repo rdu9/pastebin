@@ -321,3 +321,30 @@ async def test_fake_image_is_not_viewable(alice):
 
     p = await alice.get(f"/i/{ticket['image_uid']}")
     assert p.status_code == 404
+
+async def test_view_thumbnail(alice):
+    ticket = await get_ticket(alice)
+    await upload_to_garage(ticket)
+
+    image_uid = ticket['image_uid']
+
+    r = await alice.post(f"/api/v1/images/{image_uid}/complete")
+    
+    assert r.status_code == 200
+
+    p = await alice.get(f"/i/{image_uid}?thumb=1")
+
+    assert p.status_code == 302
+
+    location = p.headers["location"]
+
+    async with httpx.AsyncClient() as s3:
+        v = await s3.get(location)
+
+    assert v.status_code == 200
+    assert PILImage.open(BytesIO(v.content)).format == "WEBP"
+    assert max(PILImage.open(BytesIO(v.content)).size) <= 400
+
+    
+
+

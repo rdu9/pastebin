@@ -123,7 +123,7 @@ class ImageService:
         image_in_garage = await self.confirm_and_queue(found_image,image_object_key,session)
         return image_in_garage
 
-    async def view_image(self,image_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession):
+    async def view_image(self,image_uid: uuid.UUID, thumb: bool , user_uid: uuid.UUID | None, session: AsyncSession):
 
         # fetch both the image and the paste in one query, and then unpack them into 2 variables
         
@@ -151,11 +151,16 @@ class ImageService:
         if paste.visibility == Visibility.private and paste.owner_uid != user_uid:
             raise NotFound()
 
-        # burn-after-reading pastes are out of this scope, because they would bypas the /reveal endpoint speicifically made for them
+        # burn-after-reading pastes are out of this scope, because they would bypass the /reveal endpoint specifically made for them
         if paste.burn_after_reading:
             raise NotFound()
 
-        object_key = image.object_key
+        if thumb:
+            if image.thumb_key is None:
+                raise NotFound()
+            object_key = image.thumb_key
+        else:
+            object_key = image.object_key
 
         fetched_image = await self.fetch_the_image(object_key)
         return fetched_image
