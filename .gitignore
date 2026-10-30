@@ -4,6 +4,7 @@
 *.key
 cookies.txt
 garage.toml
+k8s/secrets.local.env
 
 # python
 .venv/

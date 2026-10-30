@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+ name: pastebin-config
+ namespace: pastebin
+data:
+ POSTGRES_USER: "radu14"
+ POSTGRES_DB: "pastebin"
+ REDIS_HOST: "redis"
+ REDIS_PORT: ""
+ REDIS_URL: "redis://redis:6379/0"
+ CELERY_URL: "redis://redis:6379/1"
+ DOMAIN: "paste.localhost"
+ COOKIE_SECURE: "false"
+ S3_ENDPOINT: "http://garage:3900"
+ S3_PUBLIC_ENDPOINT: "http://files.localhost"
+ S3_REGION: "garage"
+ S3_BUCKET: "pastebin"
+ 
