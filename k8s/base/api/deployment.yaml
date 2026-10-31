@@ -16,7 +16,7 @@ spec:
       containers:
         - name: api
           image: pastebin:15287c4
-          command: ["uvicorn", "src:app", "--host", "0.0.0.0", "--port", "8000"]
+          command: ["uvicorn", "src:app", "--host", "0.0.0.0", "--port", "8000", "--forwarded-allow-ips", "*"]
           ports:
             - name: http
               containerPort: 8000
