@@ -10,7 +10,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate
-          image: pastebin:15287c4
+          image: pastebin:f31371c
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
