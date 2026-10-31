@@ -5,3 +5,8 @@
    *.pyc
    .pytest_cache/
    .ruff_cache/
+   garage.toml
+   k8s/
+   cookies.txt
+   tests/
+   test-images/
