@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: pastebin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+     terminationGracePeriodSeconds: 60        
+     containers:
+      - name: worker
+        image: pastebin:15287c4
+        command: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2"]   
+        envFrom:
+          - configMapRef:
+              name: pastebin-config
+          - secretRef:
+              name: pastebin-secrets
+        livenessProbe:
+          exec:
+           command: ["sh", "-c", "celery -A src.celery_app inspect ping -d celery@$HOSTNAME"]   
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
