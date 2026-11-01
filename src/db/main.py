@@ -3,7 +3,7 @@ from src.config import Config
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 async_engine = create_async_engine(
-    url=Config.DATABASE_URL, echo=False, pool_size=10, max_overflow=20, pool_timeout=30
+    url=Config.DATABASE_URL, echo=False, pool_size=Config.DB_POOL_SIZE, max_overflow=Config.DB_MAX_OVERFLOW, pool_timeout=30
 )
 
 async_session = async_sessionmaker(

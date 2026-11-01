@@ -16,4 +16,6 @@ data:
  S3_PUBLIC_ENDPOINT: "http://files.localhost"
  S3_REGION: "garage"
  S3_BUCKET: "pastebin"
+ DB_POOL_SIZE: "5"
+ DB_MAX_OVERFLOW: "5"
  
