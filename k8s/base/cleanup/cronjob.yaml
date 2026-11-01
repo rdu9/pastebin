@@ -11,13 +11,13 @@ spec:
  jobTemplate:
    spec:
      backoffLimit: 2
-     activeDeadlineSeconds: 20
+     activeDeadlineSeconds: 240
      template:
        spec:
         restartPolicy: Never
         containers:
           - name: cleanup
-            image: pastebin:95e6490
+            image: pastebin
             command: ["python", "-m", "src.cleanup"]
             envFrom:
               - configMapRef:

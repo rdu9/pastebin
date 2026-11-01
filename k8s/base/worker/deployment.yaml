@@ -16,7 +16,7 @@ spec:
      terminationGracePeriodSeconds: 60        
      containers:
       - name: worker
-        image: pastebin:95e6490
+        image: pastebin
         command: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2"]   
         envFrom:
           - configMapRef:
