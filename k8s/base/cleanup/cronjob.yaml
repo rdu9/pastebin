@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup
+  namespace: pastebin
+spec:
+ schedule: "*/5 * * * *"
+ concurrencyPolicy: Forbid  
+ successfulJobsHistoryLimit: 3
+ failedJobsHistoryLimit: 3
+ jobTemplate:
+   spec:
+     backoffLimit: 2
+     activeDeadlineSeconds: 20
+     template:
+       spec:
+        restartPolicy: Never
+        containers:
+          - name: cleanup
+            image: pastebin:f31371c
+            command: ["python", "-m", "src.cleanup"]
+            envFrom:
+              - configMapRef:
+                  name: pastebin-config
+              - secretRef:
+                  name: pastebin-secrets
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+               memory: 256Mi
