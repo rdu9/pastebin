@@ -4,4 +4,4 @@ resources:
   - ../../base                 
 images:
   - name: pastebin            
-    newTag: "95e6490"
+    newTag: "7f585d0"
