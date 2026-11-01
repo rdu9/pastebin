@@ -7,7 +7,7 @@ data:
  POSTGRES_USER: "radu14"
  POSTGRES_DB: "pastebin"
  REDIS_HOST: "redis"
- REDIS_PORT: ""
+ REDIS_PORT: "6379"
  REDIS_URL: "redis://redis:6379/0"
  CELERY_URL: "redis://redis:6379/1"
  DOMAIN: "paste.localhost"

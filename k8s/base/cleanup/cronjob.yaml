@@ -17,7 +17,7 @@ spec:
         restartPolicy: Never
         containers:
           - name: cleanup
-            image: pastebin:f31371c
+            image: pastebin:95e6490
             command: ["python", "-m", "src.cleanup"]
             envFrom:
               - configMapRef:
