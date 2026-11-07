@@ -4,29 +4,46 @@ metadata:
   name: cleanup
   namespace: pastebin
 spec:
- schedule: "*/5 * * * *"
- concurrencyPolicy: Forbid  
- successfulJobsHistoryLimit: 3
- failedJobsHistoryLimit: 3
- jobTemplate:
-   spec:
-     backoffLimit: 2
-     activeDeadlineSeconds: 240
-     template:
-       spec:
-        restartPolicy: Never
-        containers:
-          - name: cleanup
-            image: pastebin
-            command: ["python", "-m", "src.cleanup"]
-            envFrom:
-              - configMapRef:
-                  name: pastebin-config
-              - secretRef:
-                  name: pastebin-secrets
-            resources:
-              requests:
-                cpu: 50m
-                memory: 128Mi
-              limits:
-               memory: 256Mi
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 240
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cleanup
+              image: pastebin
+              command: ["python", "-m", "src.cleanup"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              envFrom:
+                - configMapRef:
+                    name: pastebin-config
+                - secretRef:
+                    name: pastebin-secrets
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
+          volumes:
+            - name: tmp
+              emptyDir: {}

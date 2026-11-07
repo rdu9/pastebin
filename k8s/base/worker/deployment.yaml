@@ -13,26 +13,43 @@ spec:
       labels:
         app: worker
     spec:
-     terminationGracePeriodSeconds: 60        
-     containers:
-      - name: worker
-        image: pastebin
-        command: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2"]   
-        envFrom:
-          - configMapRef:
-              name: pastebin-config
-          - secretRef:
-              name: pastebin-secrets
-        livenessProbe:
-          exec:
-           command: ["sh", "-c", "celery -A src.celery_app inspect ping -d celery@$HOSTNAME"]   
-          initialDelaySeconds: 30
-          periodSeconds: 60
-          timeoutSeconds: 10
-          failureThreshold: 3
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-          limits:
-            memory: 512Mi
+      terminationGracePeriodSeconds: 60
+      securityContext:                       
+        runAsNonRoot: true                   
+        runAsUser: 1000                      
+        runAsGroup: 1000                     
+        seccompProfile:                      
+          type: RuntimeDefault               
+      containers:
+        - name: worker
+          image: pastebin
+          command: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+          securityContext:                    
+            allowPrivilegeEscalation: false   
+            readOnlyRootFilesystem: true      
+            capabilities:                     
+              drop: ["ALL"]                   
+          volumeMounts:                       
+            - name: tmp                       
+              mountPath: /tmp                 
+          envFrom:
+            - configMapRef:
+                name: pastebin-config
+            - secretRef:
+                name: pastebin-secrets
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "celery -A src.celery_app inspect ping -d celery@$HOSTNAME"]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+      volumes:                                
+        - name: tmp                           
+          emptyDir: {}                        
