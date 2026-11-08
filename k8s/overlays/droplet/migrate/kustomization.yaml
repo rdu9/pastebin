@@ -5,4 +5,4 @@ resources:
 images:
   - name: pastebin
     newName: ghcr.io/rdu9/pastebin
-    newTag: "1715cad"
+    newTag: "b8399fa"
