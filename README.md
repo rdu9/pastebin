@@ -2,7 +2,7 @@
 
 A pastebin with image uploads, hosted on Kubernetes, on a DigitalOcean droplet.
 
-> This is a backend project. The frontend is a small, AI-generated static page that's only there to show the backend working.
+> This is a backend project, with a frontend that is a small, AI-generated static page that's only there to show the backend working.
 
 **Full demo (1 min):**
 
