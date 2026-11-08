@@ -265,6 +265,12 @@ function renderNew() {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !submit.disabled) form.requestSubmit();
   });
 
+  const burnBox = form.elements.burn_after_reading;
+  burnBox.addEventListener("change", () => {
+    dropzone.style.display = burnBox.checked ? "none" : "";
+    fileList.style.display = burnBox.checked ? "none" : "";
+  });
+
   dropzone.addEventListener("click", () => fileInput.click());
   dropzone.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), fileInput.click()));
   fileInput.addEventListener("change", () => {
@@ -293,7 +299,7 @@ function renderNew() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const toUpload = state.me ? files.filter((f) => f.status === "ready") : [];
+    const toUpload = state.me && !burnBox.checked ? files.filter((f) => f.status === "ready") : [];
     const rejected = files.filter((f) => f.status === "rejected").length;
     if (rejected) toast(`${rejected} rejected file${rejected > 1 ? "s" : ""} will be skipped`);
 

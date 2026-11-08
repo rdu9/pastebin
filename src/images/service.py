@@ -5,7 +5,7 @@ import uuid
 from src.config import Config
 from datetime import datetime, timezone
 from .schemas import UploadUrlRequest, MAX_IMAGE_BYTES
-from src.errors import NotFound
+from src.errors import NotFound, Forbidden
 from src.storage import s3_public
 from botocore.exceptions import ClientError
 from src.storage import s3_internal
@@ -92,6 +92,8 @@ class ImageService:
         found_paste = result.one_or_none()
         if not found_paste:
             raise NotFound()
+        if found_paste.burn_after_reading:
+            raise Forbidden("Burn-after-reading pastes can't have images.")
 
         # configure the image
 
