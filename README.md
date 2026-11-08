@@ -1,10 +1,12 @@
 # pastebin
 
+( DISCLAIMER: This is a backend project, so it features a simple AI Generated frontend, to showcase the backend )
+
 A pastebin with image uploads, hosted on Kubernetes, on a DigitalOcean droplet.
 
+** Full demo ( 1 min ):**
 
-
-
+https://github.com/user-attachments/assets/1b2549ef-6aec-4356-9866-4c138927606c
 
 A project that helped me understand Kubernetes better, and also learn a lot of new things along the way, like Kustomize or Garage.
 
