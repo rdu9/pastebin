@@ -2,7 +2,9 @@
 
 A pastebin with image uploads, hosted on Kubernetes, on a DigitalOcean droplet.
 
-![demo](docs/demo/demo.gif)
+
+
+
 
 A project that helped me understand Kubernetes better, and also learn a lot of new things along the way, like Kustomize or Garage.
 
