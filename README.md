@@ -1,10 +1,10 @@
 # pastebin
 
-( DISCLAIMER: This is a backend project, so it features a simple AI Generated frontend, to showcase the backend )
-
 A pastebin with image uploads, hosted on Kubernetes, on a DigitalOcean droplet.
 
-** Full demo ( 1 min ):**
+> This is a backend project. The frontend is a small, AI-generated static page that's only there to show the backend working.
+
+**Full demo (1 min):**
 
 https://github.com/user-attachments/assets/1b2549ef-6aec-4356-9866-4c138927606c
 
