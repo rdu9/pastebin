@@ -20,7 +20,7 @@ s3.put_bucket_cors(
     CORSConfiguration={
         "CORSRules": [
             {
-                "AllowedOrigins": ["http://localhost:8000", "http://paste.localhost"],
+                "AllowedOrigins": ["http://localhost:8000", "http://paste.localhost", "https://pastes.online"],
                 "AllowedMethods": ["GET", "HEAD", "POST"],
                 "AllowedHeaders": ["*"],
                 "ExposeHeaders": ["ETag"],

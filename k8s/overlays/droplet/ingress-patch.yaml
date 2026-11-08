@@ -3,7 +3,14 @@ kind: Ingress
 metadata:
   name: pastebin
   namespace: pastebin
+  annotations:                                               
+    cert-manager.io/cluster-issuer: letsencrypt-production      
 spec:
+  tls:                                                     
+    - hosts:                                               
+        - pastes.online                                    
+        - files.pastes.online                              
+      secretName: pastebin-tls                             
   rules:
     - host: pastes.online
       http:

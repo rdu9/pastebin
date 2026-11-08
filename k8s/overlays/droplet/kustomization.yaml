@@ -3,11 +3,14 @@ kind: Kustomization
 resources:
   - ../../base
   - sealed-secret.yaml
+  - letsencrypt-challenge-policy.yaml
+  - letsencrypt-issuers.yaml
 images:
   - name: pastebin                       
     newName: ghcr.io/rdu9/pastebin       
-    newTag: "ecfb308"
+    newTag: "1715cad"
 patches:
   - path: configmap-patch.yaml        
   - path: configmap-patch.yaml
   - path: ingress-patch.yaml
+  
