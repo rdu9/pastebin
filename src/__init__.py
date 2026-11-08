@@ -8,6 +8,8 @@ from src.images.routes import image_route
 from src.images.routes import image_view_route
 from src.errors import register_all_errors
 from src.middleware import RequestID
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 
 ### readyz imports / functions
 
@@ -62,9 +64,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# static mount
-
-
 # health endpoints for k8s: healthz for liveness and readyz for readiness
 
 @app.get("/healthz", tags=["Health"])
@@ -98,3 +97,7 @@ app.include_router(auth_router, prefix=f"/api/{version}/auth", tags = ["Auth"])
 app.include_router(pastes_router, prefix=f"/api/{version}/pastes", tags = ["Paste"])
 app.include_router(image_route, prefix=f"/api/{version}/images", tags = ["Image"])
 app.include_router(image_view_route, tags=["Images"])
+
+# static mount
+
+app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="frontend")

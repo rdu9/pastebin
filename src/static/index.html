@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pastebin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/" class="logo">paste<span>bin</span></a>
+    <nav>
+      <a href="#/" data-nav="new">New</a>
+      <a href="#/public" data-nav="public">Public</a>
+      <a href="#/mine" data-nav="mine" class="auth-only">My pastes</a>
+      <span class="divider"></span>
+      <span id="user-email" class="auth-only muted"></span>
+      <button id="logout-btn" class="link auth-only">Log out</button>
+      <a href="#/login" class="guest-only">Log in</a>
+      <a href="#/register" class="guest-only btn small">Sign up</a>
+    </nav>
+  </header>
+
+  <main id="view"></main>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <img alt="">
+    <span class="hint">Esc or click to close</span>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <template id="tpl-new">
+    <section class="card">
+      <h1>New paste</h1>
+      <form id="paste-form" novalidate>
+        <input name="title" placeholder="Title (optional)" maxlength="200">
+        <div class="editor">
+          <textarea name="content" placeholder="Paste your text or code here…" spellcheck="false"></textarea>
+          <div class="editor-foot">
+            <span class="muted">Tab indents · ⌘/Ctrl + Enter creates</span>
+            <span id="byte-count" class="muted">0 B / 512 KB</span>
+          </div>
+        </div>
+        <div class="row">
+          <label>Language
+            <select name="language">
+              <option value="">plain text</option>
+              <option>python</option><option>javascript</option><option>typescript</option>
+              <option>go</option><option>rust</option><option>bash</option><option>sql</option>
+              <option>json</option><option>yaml</option><option>html</option><option>css</option>
+            </select>
+          </label>
+          <label>Visibility
+            <select name="visibility">
+              <option value="unlisted">unlisted — only with the link</option>
+              <option value="public">public — listed for everyone</option>
+              <option value="private">private — only me</option>
+            </select>
+          </label>
+          <label>Expires
+            <select name="expires_in">
+              <option value="never">never</option>
+              <option value="1h">in 1 hour</option>
+              <option value="1d">in 1 day</option>
+              <option value="1w">in 1 week</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" name="burn_after_reading"> Burn after reading <span class="muted">— deleted the first time someone opens it</span></label>
+
+        <div class="auth-only">
+          <div id="dropzone" class="dropzone" tabindex="0">
+            <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+            <strong>Drop images here</strong> or <u>browse</u>
+            <small>png · jpeg · webp · gif — up to 5 MB each, max 10</small>
+          </div>
+          <ul id="file-list" class="file-list"></ul>
+        </div>
+        <p class="guest-only muted small-text">Log in to create private pastes and attach images.</p>
+
+        <button type="submit" class="btn">Create paste</button>
+      </form>
+    </section>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>
