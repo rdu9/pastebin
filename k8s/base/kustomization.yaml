@@ -16,3 +16,11 @@ resources:
   - worker/deployment.yaml
   - cleanup/cronjob.yaml
   - ingress/ingress.yaml
+  - policies/default-deny.yaml
+  - policies/allow-dns.yaml
+  - policies/api.yaml
+  - policies/postgres.yaml
+  - policies/redis.yaml
+  - policies/garage.yaml
+  - policies/worker.yaml
+  - policies/jobs.yaml
