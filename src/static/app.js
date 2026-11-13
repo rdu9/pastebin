@@ -427,15 +427,17 @@ async function renderPaste(uid) {
     body.replaceChildren(codeBlock(content));
     if (burned) body.append(el("p", { class: "notice" }, "This paste has been burned. Copy anything you need now — it's gone once you leave."));
     actions.replaceChildren(
-      el("button", { class: "btn ghost small", onclick: () => copy(content, "Content") }, "Copy"),
-      !burned && el("button", { class: "btn ghost small", onclick: () => copy(link, "Link") }, "Copy link"),
-      !isBurn && el("a", { class: "btn ghost small", href: `${API}/pastes/${uid}/raw`, target: "_blank" }, "Raw"),
-      !burned && deleteButton()
+      ...[
+        el("button", { class: "btn ghost small", onclick: () => copy(content, "Content") }, "Copy"),
+        !burned && el("button", { class: "btn ghost small", onclick: () => copy(link, "Link") }, "Copy link"),
+        !isBurn && el("a", { class: "btn ghost small", href: `${API}/pastes/${uid}/raw`, target: "_blank" }, "Raw"),
+        !burned && deleteButton(),
+      ].filter(Boolean)
     );
   }
 
   if (isBurn && paste.content == null) {
-    actions.replaceChildren(el("button", { class: "btn ghost small", onclick: () => copy(link, "Link") }, "Copy link"), deleteButton());
+    actions.replaceChildren(...[el("button", { class: "btn ghost small", onclick: () => copy(link, "Link") }, "Copy link"), deleteButton()].filter(Boolean));
     body.replaceChildren(
       el(
         "div",
