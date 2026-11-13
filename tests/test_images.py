@@ -367,3 +367,30 @@ async def test_paste_does_not_list_pending_images(alice):
 
     assert r.status_code == 200
     assert r.json()["images"] == []
+
+async def test_burn_after_reading(alice):
+    p = await alice.post(
+            "/api/v1/pastes/",
+            json={
+                "title": "my_paste",
+                "content": "the_content",
+                "language": "spanish",
+                "visibility": "public",
+                "burn_after_reading": "true",
+                "expires_in": "never",
+            },
+        )
+
+    assert p.status_code == 200
+    paste_uid = p.json()["uid"]
+
+    r = await alice.post(
+            "/api/v1/images/upload-url",
+            json={"paste_uid": paste_uid, "content_type": "image/png", "size_bytes": 256},
+        )
+    
+    assert r.status_code == 403
+    assert r.json()["error_code"] == "forbidden"
+
+    
+
