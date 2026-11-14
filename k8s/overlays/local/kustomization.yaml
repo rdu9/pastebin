@@ -5,4 +5,4 @@ resources:
   - sealed-secret.yaml     
 images:
   - name: pastebin            
-    newTag: "7f585d0"
+    newTag: "213e5b0"
