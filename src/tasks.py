@@ -142,4 +142,7 @@ def update_view_counter() -> None:
             )
             flushed += 1
         session.commit()
-    logger.info("views.flushed", pastes=flushed)
+    if flushed > 0:
+        logger.info("views.flushed", pastes=flushed)
+    else:
+        logger.debug("views.not_flushed")

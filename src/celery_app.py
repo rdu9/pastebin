@@ -16,3 +16,10 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_redirect_stdouts=False,
 )
+
+celery_app.conf.beat_schedule = {
+    "flush-view-counters": {
+        "task": "src.tasks.update_view_counter",
+        "schedule": 60.0,
+    },
+}

@@ -10,6 +10,7 @@ from src.errors import register_all_errors
 from src.middleware import RequestID
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
+import logging
 
 ### readyz imports / functions
 
@@ -42,7 +43,9 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.JSONRenderer(),
+        
     ],
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
     cache_logger_on_first_use=True,
 )
 
