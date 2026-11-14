@@ -115,7 +115,7 @@ class PasteService:
 
         return response_paste
 
-    async def view_paste_with_images(self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, viewer: str, session: AsyncSession):
+    async def view_paste_with_images(self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, viewer: str | None, session: AsyncSession):
 
         paste = await self.view_paste(paste_uid,user_uid,viewer,session)
 
@@ -176,7 +176,7 @@ class PasteService:
 
         # reuse the view paste function. all the checks are the same, but if burn-after-reading is enabled, raw content is not available
 
-        response_paste = await self.view_paste(paste_uid, user_uid, session)
+        response_paste = await self.view_paste(paste_uid=paste_uid, user_uid=user_uid, viewer=None, session=session)
         if response_paste.burn_after_reading:
             raise Forbidden("Burn-after-reading paste. Use /reveal to see the content.")
 

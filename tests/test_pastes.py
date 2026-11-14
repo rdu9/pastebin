@@ -1,3 +1,6 @@
+from src.db.redis import redis_client
+
+
 async def test_anonymous_create_and_view(client):
     r = await client.post("/api/v1/pastes/", json={"content": "print('hello')"})
     assert r.status_code == 200
@@ -110,3 +113,50 @@ async def test_user_cant_delete_another_user_paste(alice, bob):
     assert b.status_code == 404
 
     assert (await alice.get(f"/api/v1/pastes/{paste_uid}")).status_code == 200
+
+
+
+
+async def test_view_by_someone_else_is_counted(alice, bob):
+    uid = (await alice.post("/api/v1/pastes/", json={"content": "views"})).json()["uid"]
+
+    assert (await bob.get(f"/api/v1/pastes/{uid}")).status_code == 200
+
+    assert await redis_client.get(f"views:{uid}") == "1"
+
+
+async def test_repeated_view_is_counted_once(alice, bob):
+    uid = (await alice.post("/api/v1/pastes/", json={"content": "views"})).json()["uid"]
+
+    await bob.get(f"/api/v1/pastes/{uid}")
+    await bob.get(f"/api/v1/pastes/{uid}")
+
+    assert await redis_client.get(f"views:{uid}") == "1"
+
+
+async def test_owner_view_is_not_counted(alice):
+    uid = (await alice.post("/api/v1/pastes/", json={"content": "views"})).json()["uid"]
+
+    await alice.get(f"/api/v1/pastes/{uid}")
+
+    assert await redis_client.get(f"views:{uid}") is None
+
+
+async def test_anonymous_view_of_anonymous_paste_is_counted(client):
+    uid = (await client.post("/api/v1/pastes/", json={"content": "views"})).json()["uid"]
+
+    await client.get(f"/api/v1/pastes/{uid}")
+
+    assert await redis_client.get(f"views:{uid}") == "1"
+
+
+async def test_burn_paste_view_is_not_counted(alice, bob):
+    uid = (
+        await alice.post(
+            "/api/v1/pastes/", json={"content": "views", "burn_after_reading": True}
+        )
+    ).json()["uid"]
+
+    await bob.get(f"/api/v1/pastes/{uid}")
+
+    assert await redis_client.get(f"views:{uid}") is None
