@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+kubectl cluster-info > /dev/null 2>&1 || { echo "cluster not reachable"; exit 1; }
+
 if ! git diff --quiet HEAD; then
   echo "uncommitted changes found"
   exit 1
