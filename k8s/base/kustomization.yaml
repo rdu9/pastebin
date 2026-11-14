@@ -24,3 +24,5 @@ resources:
   - policies/garage.yaml
   - policies/worker.yaml
   - policies/jobs.yaml
+  - beat/deployment.yaml
+  - policies/beat.yaml
