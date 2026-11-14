@@ -70,6 +70,7 @@ class Paste(SQLModel, table=True):
     visibility: Visibility
     burn_after_reading: bool = Field(default=False)
     size_bytes: int
+    views: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
 
     expires_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

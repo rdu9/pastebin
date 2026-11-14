@@ -9,6 +9,7 @@ from fastapi.responses import PlainTextResponse
 from starlette.concurrency import run_in_threadpool
 from src.storage import s3_internal
 from src.config import Config
+from src.db.redis import record_view
 
 # define global variables
 MAX_PASTE_BYTES = 512 * 1024
@@ -79,7 +80,7 @@ class PasteService:
         return new_paste
 
     async def view_paste(
-        self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession
+        self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, viewer: str, session: AsyncSession
     ):
 
         # fetch the paste object before anything, and check burn after expiry
@@ -107,11 +108,16 @@ class PasteService:
         if response_paste.burn_after_reading:
             response_paste.content = None
 
+            
+        is_owner = user_uid is not None and response_paste.owner_uid == user_uid
+        if not response_paste.burn_after_reading and not is_owner:
+            await record_view(response_paste, viewer)
+
         return response_paste
 
-    async def view_paste_with_images(self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession):
+    async def view_paste_with_images(self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, viewer: str, session: AsyncSession):
 
-        paste = await self.view_paste(paste_uid,user_uid,session)
+        paste = await self.view_paste(paste_uid,user_uid,viewer,session)
 
         if paste.burn_after_reading:
             image_uids = []

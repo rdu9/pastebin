@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from src.db.main import get_session
 from .schemas import PasteCreateModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,10 +23,12 @@ async def create_paste(
 @pastes_router.get("/{paste_uid}")
 async def view_paste_with_images(
     paste_uid: uuid.UUID,
+    request: Request,
     user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
     session: AsyncSession = Depends(get_session),
 ):
-    response = await pastes_service.view_paste_with_images(paste_uid, user_uid, session)
+    viewer = str(user_uid) if user_uid else request.client.host
+    response = await pastes_service.view_paste_with_images(paste_uid, user_uid, viewer,session)
     return response
 
 

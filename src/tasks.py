@@ -1,15 +1,21 @@
 from src.celery_app import celery_app
 from src.sync import get_sync_session
-from src.db.models import Image, ImageStatus
-from sqlmodel import select
+from src.db.models import Image, ImageStatus, Paste
+from sqlmodel import select, update
 from io import BytesIO
 from PIL import Image as PILImage, ImageOps, UnidentifiedImageError
 from botocore.exceptions import EndpointConnectionError
 from src.config import Config
 from src.storage import s3_internal
 import structlog
+import uuid
+import redis
 
 logger = structlog.get_logger()
+
+
+# import redis for the views function
+sync_redis = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
 
 
 PILImage.MAX_IMAGE_PIXELS = 40_000_000
@@ -114,3 +120,26 @@ def process_image(image_uid: str) -> None:
         found_image.size_bytes = len(cleaned)
         found_image.status = ImageStatus.ready
         session.commit()
+
+
+@celery_app.task
+def update_view_counter() -> None:
+    flushed = 0
+    with get_sync_session() as session:
+        for key in sync_redis.scan_iter("views:*"):
+            count = sync_redis.getdel(key)
+            if count is None:
+                continue
+            try:
+                paste_uid = uuid.UUID(key.removeprefix("views:"))
+            except ValueError:
+                logger.warning("views.bad_key", key=key)
+                continue
+            session.execute(
+                update(Paste)
+                .where(Paste.uid == paste_uid)
+                .values(views=Paste.views + int(count))
+            )
+            flushed += 1
+        session.commit()
+    logger.info("views.flushed", pastes=flushed)
