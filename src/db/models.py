@@ -3,6 +3,8 @@ import uuid
 from datetime import datetime
 from sqlalchemy import DateTime, Index, Text, func
 import enum
+from sqlalchemy import Column,Computed,Index
+from sqlalchemy.dialects.postgresql import TSVECTOR
 
 
 class Visibility(str, enum.Enum):
@@ -55,6 +57,7 @@ class Paste(SQLModel, table=True):
         Index("ix_pastes_public", "visibility", "created_at"),  
         Index("ix_pastes_owner", "owner_uid", "created_at"),  
         Index("ix_pastes_expires", "expires_at"), 
+        Index("ix_pastes_search", "search_vector", postgresql_using="gin"),
     )
 
     uid: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -76,6 +79,17 @@ class Paste(SQLModel, table=True):
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )  
     created_at: datetime | None = Field(default=None, sa_column=created_at_column())
+    search_vector: str | None = Field(
+        default=None,
+        exclude=True,
+        sa_column=Column(
+            TSVECTOR,
+            Computed(
+                "to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(content, ''))",
+                persisted=True,
+            ),
+        ),
+    )
 
 
 class Image(SQLModel, table=True):

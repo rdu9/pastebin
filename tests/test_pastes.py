@@ -1,3 +1,4 @@
+from conftest import run_sql
 from src.db.redis import redis_client
 
 
@@ -160,3 +161,69 @@ async def test_burn_paste_view_is_not_counted(alice, bob):
     await bob.get(f"/api/v1/pastes/{uid}")
 
     assert await redis_client.get(f"views:{uid}") is None
+
+
+async def test_search_finds_public_paste(client):
+    await client.post("/api/v1/pastes/", json={"content": "notes about kubernetes", "visibility": "public"})
+
+    r = await client.get("/api/v1/pastes/search", params={"q": "kubernetes"})
+
+    assert r.status_code == 200
+    assert len(r.json()) == 1
+
+
+async def test_search_ignores_unlisted_and_private(alice):
+    await alice.post("/api/v1/pastes/", json={"content": "secret kubernetes", "visibility": "unlisted"})
+    await alice.post("/api/v1/pastes/", json={"content": "secret kubernetes", "visibility": "private"})
+
+    r = await alice.get("/api/v1/pastes/search", params={"q": "kubernetes"})
+
+    assert r.json() == []
+
+
+async def test_search_ignores_burn_pastes(client):
+    await client.post(
+        "/api/v1/pastes/",
+        json={"content": "burn kubernetes", "visibility": "public", "burn_after_reading": True},
+    )
+
+    r = await client.get("/api/v1/pastes/search", params={"q": "kubernetes"})
+
+    assert r.json() == []
+
+
+async def test_search_ignores_expired_pastes(client):
+    uid = (
+        await client.post("/api/v1/pastes/", json={"content": "old kubernetes", "visibility": "public"})
+    ).json()["uid"]
+    await run_sql("UPDATE pastes SET expires_at = now() - interval '1 hour' WHERE uid = :uid", uid=uid)
+
+    r = await client.get("/api/v1/pastes/search", params={"q": "kubernetes"})
+
+    assert r.json() == []
+
+
+async def test_search_ranks_better_matches_first(client):
+    once = (
+        await client.post("/api/v1/pastes/", json={"content": "redis and other things", "visibility": "public"})
+    ).json()["uid"]
+    many = (
+        await client.post("/api/v1/pastes/", json={"content": "redis redis redis", "visibility": "public"})
+    ).json()["uid"]
+
+    r = await client.get("/api/v1/pastes/search", params={"q": "redis"})
+
+    assert [p["uid"] for p in r.json()] == [many, once]
+
+
+async def test_search_is_not_treated_as_a_paste_uid(client):
+    r = await client.get("/api/v1/pastes/search", params={"q": "nothing-matches-this"})
+
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+async def test_search_requires_a_query(client):
+    r = await client.get("/api/v1/pastes/search")
+
+    assert r.status_code == 422

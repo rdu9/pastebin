@@ -5,7 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from .service import PasteService
 from src.auth.dependencies import get_optional_user_uid,get_current_user_uid
 import uuid
-from src.ratelimit import pastes_ratelimit
+from src.ratelimit import pastes_ratelimit, search_ratelimit
 
 pastes_router = APIRouter()
 pastes_service = PasteService()
@@ -19,6 +19,16 @@ async def create_paste(
 ):
     response = await pastes_service.create_paste(payload, user_uid, session)
     return response
+
+@pastes_router.get("/search", dependencies=[Depends(search_ratelimit)])
+async def search_pastes(
+    q: str = Query(min_length=1, max_length=200),
+    page: int = Query(1, ge=1),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.search_pastes(q, page, session)
+    return response
+
 
 @pastes_router.get("/{paste_uid}")
 async def view_paste_with_images(

@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from src.storage import s3_internal
 from src.config import Config
 from src.db.redis import record_view
+from sqlalchemy import func
 
 # define global variables
 MAX_PASTE_BYTES = 512 * 1024
@@ -219,6 +220,45 @@ class PasteService:
                 ),
             )
             .order_by(Paste.created_at.desc())
+            .offset((page - 1) * PAGE_SIZE)
+            .limit(PAGE_SIZE)
+        )
+        result = await session.exec(statement)
+        pastes = result.all()
+
+        return [
+            {
+                "uid": paste.uid,
+                "title": paste.title,
+                "language": paste.language,
+                "created_at": paste.created_at,
+                "size_bytes": paste.size_bytes,
+            }
+            for paste in pastes
+        ]
+
+    async def search_pastes(self, q: str, page: int, session: AsyncSession):
+
+        query = func.websearch_to_tsquery("simple", q)
+
+        statement = (
+            select(
+                Paste.uid,
+                Paste.title,
+                Paste.language,
+                Paste.created_at,
+                Paste.size_bytes,
+            )
+            .where(
+                Paste.search_vector.op("@@")(query),
+                Paste.visibility == Visibility.public,
+                Paste.burn_after_reading == False,
+                or_(
+                    Paste.expires_at.is_(None),
+                    Paste.expires_at > datetime.now(timezone.utc),
+                ),
+            )
+            .order_by(func.ts_rank(Paste.search_vector, query).desc(), Paste.created_at.desc())
             .offset((page - 1) * PAGE_SIZE)
             .limit(PAGE_SIZE)
         )
