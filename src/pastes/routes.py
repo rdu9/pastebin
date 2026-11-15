@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, Request
 from src.db.main import get_session
-from .schemas import PasteCreateModel
+from .schemas import PasteCreateModel, PasteUpdateModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 from .service import PasteService
 from src.auth.dependencies import get_optional_user_uid,get_current_user_uid
@@ -87,3 +87,12 @@ async def get_user_pastes(
     response = await pastes_service.get_user_pastes(page, user_uid,session)
     return response
 
+@pastes_router.put("/{paste_uid}", dependencies=[Depends(pastes_ratelimit)])
+async def edit_paste(
+    paste_uid: uuid.UUID,                          
+    payload: PasteUpdateModel,                     
+    user_uid: uuid.UUID = Depends(get_current_user_uid),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.update_paste(paste_uid, payload, user_uid, session)
+    return response

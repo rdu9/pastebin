@@ -11,3 +11,8 @@ class PasteCreateModel(BaseModel,extra="forbid"):
     visibility: Visibility = Visibility.unlisted
     burn_after_reading: bool = False
     expires_in: Literal["1h", "1d", "1w", "never"] = "never"
+
+class PasteUpdateModel(BaseModel, extra="forbid"):
+    title: str | None = None
+    content: str = Field(min_length=1, max_length=512_000)
+    language: str | None = None

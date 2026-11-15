@@ -1,9 +1,9 @@
-from src.db.models import Paste, Visibility, Image, ImageStatus
+from src.db.models import Paste, Visibility, Image, ImageStatus, PasteRevision
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, or_
 import uuid
 from datetime import datetime, timedelta, timezone
-from .schemas import PasteCreateModel
+from .schemas import PasteCreateModel, PasteUpdateModel
 from src.errors import NotFound, Forbidden, TooLarge
 from fastapi.responses import PlainTextResponse
 from starlette.concurrency import run_in_threadpool
@@ -34,15 +34,23 @@ class PasteService:
     async def delete_with_images(self, paste: Paste, session: AsyncSession):
         rows = (
             await session.exec(
-                select(Image.object_key, Image.thumb_key).where(Image.paste_uid == paste.uid)
+                select(Image.object_key, Image.thumb_key).where(
+                    Image.paste_uid == paste.uid
+                )
             )
         ).all()
         await session.delete(paste)
         await session.commit()
         for row in rows:
-            await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.object_key)
+            await run_in_threadpool(
+                s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.object_key
+            )
             if row.thumb_key is not None:
-                await run_in_threadpool(s3_internal.delete_object, Bucket=Config.S3_BUCKET, Key=row.thumb_key)
+                await run_in_threadpool(
+                    s3_internal.delete_object,
+                    Bucket=Config.S3_BUCKET,
+                    Key=row.thumb_key,
+                )
 
     async def create_paste(
         self,
@@ -81,7 +89,11 @@ class PasteService:
         return new_paste
 
     async def view_paste(
-        self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, viewer: str, session: AsyncSession
+        self,
+        paste_uid: uuid.UUID,
+        user_uid: uuid.UUID | None,
+        viewer: str,
+        session: AsyncSession,
     ):
 
         # fetch the paste object before anything, and check burn after expiry
@@ -109,16 +121,21 @@ class PasteService:
         if response_paste.burn_after_reading:
             response_paste.content = None
 
-            
         is_owner = user_uid is not None and response_paste.owner_uid == user_uid
         if not response_paste.burn_after_reading and not is_owner:
             await record_view(response_paste, viewer)
 
         return response_paste
 
-    async def view_paste_with_images(self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, viewer: str | None, session: AsyncSession):
+    async def view_paste_with_images(
+        self,
+        paste_uid: uuid.UUID,
+        user_uid: uuid.UUID | None,
+        viewer: str | None,
+        session: AsyncSession,
+    ):
 
-        paste = await self.view_paste(paste_uid,user_uid,viewer,session)
+        paste = await self.view_paste(paste_uid, user_uid, viewer, session)
 
         if paste.burn_after_reading:
             image_uids = []
@@ -126,8 +143,7 @@ class PasteService:
             image_uids = (
                 await session.exec(
                     select(Image.uid).where(
-                        Image.paste_uid == paste_uid,
-                        Image.status == ImageStatus.ready
+                        Image.paste_uid == paste_uid, Image.status == ImageStatus.ready
                     )
                 )
             ).all()
@@ -167,7 +183,7 @@ class PasteService:
 
         # delete the paste
 
-        await self.delete_with_images(response_paste,session)
+        await self.delete_with_images(response_paste, session)
 
         return response_paste
 
@@ -177,7 +193,9 @@ class PasteService:
 
         # reuse the view paste function. all the checks are the same, but if burn-after-reading is enabled, raw content is not available
 
-        response_paste = await self.view_paste(paste_uid=paste_uid, user_uid=user_uid, viewer=None, session=session)
+        response_paste = await self.view_paste(
+            paste_uid=paste_uid, user_uid=user_uid, viewer=None, session=session
+        )
         if response_paste.burn_after_reading:
             raise Forbidden("Burn-after-reading paste. Use /reveal to see the content.")
 
@@ -198,7 +216,7 @@ class PasteService:
         if not paste_to_delete:
             raise NotFound()
 
-        await self.delete_with_images(paste_to_delete,session)
+        await self.delete_with_images(paste_to_delete, session)
 
         return {}
 
@@ -258,7 +276,9 @@ class PasteService:
                     Paste.expires_at > datetime.now(timezone.utc),
                 ),
             )
-            .order_by(func.ts_rank(Paste.search_vector, query).desc(), Paste.created_at.desc())
+            .order_by(
+                func.ts_rank(Paste.search_vector, query).desc(), Paste.created_at.desc()
+            )
             .offset((page - 1) * PAGE_SIZE)
             .limit(PAGE_SIZE)
         )
@@ -315,3 +335,70 @@ class PasteService:
             }
             for paste in pastes
         ]
+
+    async def update_paste( 
+        self,
+        paste_uid: uuid.UUID,
+        payload: PasteUpdateModel,
+        user_uid: uuid.UUID,
+        session: AsyncSession,
+    ):
+
+        # first part
+        
+        # set the new values for the main paste, revision gets the current ones
+        title = payload.title
+        content = payload.content
+
+        size_bytes = len(content.encode("utf-8"))
+        if size_bytes > MAX_PASTE_BYTES:
+            raise TooLarge("Paste is larger than 512 KB.")
+
+        language = payload.language
+
+        statement = select(Paste).where(
+            Paste.uid == paste_uid,
+            Paste.owner_uid == user_uid,
+            Paste.burn_after_reading == False,
+            or_(
+                Paste.expires_at.is_(None),
+                Paste.expires_at > datetime.now(timezone.utc),
+            ),
+        ).with_for_update()
+
+        found_paste = (await session.exec(statement)).one_or_none()
+
+        if not found_paste:
+            raise NotFound()
+
+        # second part
+
+        statement = select(func.max(PasteRevision.number)).where(PasteRevision.paste_uid == found_paste.uid)
+        last_number = (await session.exec(statement)).one()
+        next_number = (last_number or 0) + 1
+
+        new_revision_paste = PasteRevision(
+            paste_uid = found_paste.uid,
+            number=next_number,
+            title = found_paste.title,
+            language = found_paste.language,
+            content = found_paste.content,
+            size_bytes = found_paste.size_bytes
+        )
+
+        # update the result paste after the revision paste, so the revision paste gets the old values
+
+        found_paste.title = title
+        found_paste.content = content
+        found_paste.language = language
+        found_paste.size_bytes = size_bytes
+
+        # commit them both at once
+
+        session.add(found_paste)
+        session.add(new_revision_paste)
+        await session.commit()
+
+        return found_paste
+
+

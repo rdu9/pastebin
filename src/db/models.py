@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import DateTime, Index, Text, func
 import enum
-from sqlalchemy import Column,Computed,Index
+from sqlalchemy import Column,Computed,Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import TSVECTOR
 
 
@@ -90,6 +90,25 @@ class Paste(SQLModel, table=True):
             ),
         ),
     )
+
+class PasteRevision(SQLModel, table=True):
+    __tablename__ = "paste_revisions"
+
+    __table_args__ = (UniqueConstraint("paste_uid", "number"),)
+
+    uid: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    paste_uid: uuid.UUID = Field(
+            foreign_key="pastes.uid", ondelete="CASCADE", index=True
+        )
+    number: int 
+    title: str | None = None
+    language: str | None = None
+    content: str | None = Field(
+            default=None, sa_column=Column(Text)
+        )  
+
+    is_public: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
+    created_at: datetime | None = Field(default=None, sa_column=created_at_column())
 
 
 class Image(SQLModel, table=True):
