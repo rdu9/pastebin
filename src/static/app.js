@@ -5,7 +5,9 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 10;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
-const state = { me: null, pendingImages: {}, afterLogin: "#/" };
+const LANGUAGES = ["python", "javascript", "typescript", "go", "rust", "bash", "sql", "json", "yaml", "html", "css"];
+
+const state = { me: null, pendingImages: {}, afterLogin: "#/", owned: new Set() };
 const view = document.getElementById("view");
 const encoder = new TextEncoder();
 
@@ -395,6 +397,8 @@ async function renderPaste(uid) {
   const isOwner = state.me && paste.owner_uid === state.me.user_uid;
   const isBurn = paste.burn_after_reading;
   const link = `${location.origin}/#/p/${uid}`;
+  if (isOwner) state.owned.add(uid);
+  const views = paste.views || 0;
 
   const tags = el(
     "div",
@@ -403,6 +407,7 @@ async function renderPaste(uid) {
     el("span", { class: "tag" }, paste.visibility),
     isBurn && el("span", { class: "tag light" }, "burn after reading"),
     el("span", { class: "tag" }, formatBytes(paste.size_bytes)),
+    !isBurn && el("span", { class: "tag", title: "Updated every minute" }, `${views} view${views === 1 ? "" : "s"}`),
     el("span", { class: "tag", title: formatDate(paste.created_at) }, timeAgo(paste.created_at)),
     paste.expires_at && el("span", { class: "tag", title: formatDate(paste.expires_at) }, `expires ${timeUntil(paste.expires_at)}`)
   );
@@ -423,6 +428,110 @@ async function renderPaste(uid) {
 
   const deleteButton = () => isOwner && el("button", { class: "btn ghost small danger", onclick: deletePaste }, "Delete");
 
+  const history = el("div", { class: "history" });
+
+  async function toggleHistory() {
+    if (history.childElementCount) {
+      history.replaceChildren();
+      return;
+    }
+    let revisions;
+    try {
+      revisions = await api("GET", `/pastes/${uid}/revisions`);
+    } catch (error) {
+      toast(error.message);
+      return;
+    }
+    const emptyText = isOwner ? "No edits yet." : "No public revisions.";
+    history.replaceChildren(
+      el("h2", {}, "History"),
+      revisions.length
+        ? el(
+            "ul",
+            { class: "list" },
+            revisions.map((r) =>
+              el(
+                "li",
+                {},
+                el(
+                  "a",
+                  { href: `#/p/${uid}/r/${r.number}` },
+                  el("span", { class: "title" }, `Revision ${r.number}`, r.title ? ` · ${r.title}` : ""),
+                  el("span", { class: "sub", title: formatDate(r.created_at) }, `${r.created_at ? timeAgo(r.created_at) : ""}${isOwner ? ` · ${r.public ? "public" : "private"}` : ""}`)
+                )
+              )
+            )
+          )
+        : el("p", { class: "muted small-text" }, emptyText)
+    );
+  }
+
+  function startEdit(content) {
+    const title = el("input", { name: "title", placeholder: "Title (optional)", maxlength: "200", value: paste.title || "" });
+    const textarea = el("textarea", { name: "content", spellcheck: "false" });
+    textarea.value = content;
+    const byteCount = el("span", { class: "muted" });
+    const language = el(
+      "select",
+      { name: "language" },
+      el("option", { value: "" }, "plain text"),
+      LANGUAGES.map((lang) => el("option", { value: lang, selected: lang === paste.language ? "selected" : false }, lang))
+    );
+    const save = el("button", { type: "submit", class: "btn" }, "Save");
+    const cancel = el("button", { type: "button", class: "btn ghost", onclick: () => renderPaste(uid) }, "Cancel");
+
+    function updateBytes() {
+      const size = encoder.encode(textarea.value).length;
+      byteCount.textContent = `${formatBytes(size)} / 512 KB`;
+      byteCount.classList.toggle("over", size > MAX_PASTE_BYTES);
+      save.disabled = !textarea.value.trim() || size > MAX_PASTE_BYTES;
+    }
+
+    const form = el(
+      "form",
+      { novalidate: true },
+      title,
+      el("div", { class: "editor" }, textarea, el("div", { class: "editor-foot" }, el("span", { class: "muted" }, "The current version is saved to the history"), byteCount)),
+      el("label", {}, "Language", language),
+      el("div", { class: "edit-actions" }, save, cancel)
+    );
+
+    textarea.addEventListener("input", updateBytes);
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Tab" && !e.shiftKey) {
+        e.preventDefault();
+        textarea.setRangeText("  ", textarea.selectionStart, textarea.selectionEnd, "end");
+        updateBytes();
+      }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !save.disabled) form.requestSubmit();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      save.disabled = true;
+      save.textContent = "Saving…";
+      try {
+        await api("PUT", `/pastes/${uid}`, {
+          title: title.value.trim() || null,
+          content: textarea.value,
+          language: language.value || null,
+        });
+        toast("Saved. The previous version is in the history.");
+        renderPaste(uid);
+      } catch (error) {
+        toast(error.message);
+        save.textContent = "Save";
+        updateBytes();
+      }
+    });
+
+    actions.replaceChildren();
+    history.replaceChildren();
+    body.replaceChildren(form);
+    updateBytes();
+    textarea.focus();
+  }
+
   function showContent(content, burned) {
     body.replaceChildren(codeBlock(content));
     if (burned) body.append(el("p", { class: "notice" }, "This paste has been burned. Copy anything you need now — it's gone once you leave."));
@@ -431,6 +540,8 @@ async function renderPaste(uid) {
         el("button", { class: "btn ghost small", onclick: () => copy(content, "Content") }, "Copy"),
         !burned && el("button", { class: "btn ghost small", onclick: () => copy(link, "Link") }, "Copy link"),
         !isBurn && el("a", { class: "btn ghost small", href: `${API}/pastes/${uid}/raw`, target: "_blank" }, "Raw"),
+        !isBurn && el("button", { class: "btn ghost small", onclick: toggleHistory }, "History"),
+        !isBurn && isOwner && el("button", { class: "btn ghost small", onclick: () => startEdit(content) }, "Edit"),
         !burned && deleteButton(),
       ].filter(Boolean)
     );
@@ -467,7 +578,7 @@ async function renderPaste(uid) {
   gallery.replaceChildren(imageGrid(paste.images || []) || "");
 
   view.replaceChildren(
-    el("section", { class: "card" }, el("div", { class: "paste-head" }, el("div", {}, el("h1", {}, paste.title || "Untitled"), tags), actions), body, gallery)
+    el("section", { class: "card" }, el("div", { class: "paste-head" }, el("div", {}, el("h1", {}, paste.title || "Untitled"), tags), actions), body, gallery, history)
   );
 
   const expected = state.pendingImages[uid] || 0;
@@ -500,6 +611,74 @@ async function renderPaste(uid) {
     };
     setTimeout(poll, 1000);
   }
+}
+
+/* ---------- revision view ---------- */
+
+async function renderRevision(uid, number) {
+  setActiveNav(null);
+  loading();
+
+  let revision;
+  try {
+    revision = await api("GET", `/pastes/${uid}/revisions/${number}`);
+  } catch (error) {
+    view.replaceChildren(
+      el(
+        "section",
+        { class: "card empty" },
+        el("p", {}, error.status === 404 ? "This revision doesn't exist or isn't public." : error.message),
+        el("a", { class: "btn ghost small", href: `#/p/${uid}` }, "Back to the paste")
+      )
+    );
+    return;
+  }
+
+  const isOwner = state.owned.has(uid);
+  const visibility = el("span", { class: "tag" });
+  const toggle = el("button", { class: "btn ghost small" });
+
+  function showVisibility() {
+    visibility.textContent = revision.public ? "public" : "private";
+    toggle.textContent = revision.public ? "Make private" : "Make public";
+  }
+
+  toggle.addEventListener("click", async () => {
+    toggle.disabled = true;
+    try {
+      const updated = await api("PATCH", `/pastes/${uid}/revisions/${number}`, { is_public: !revision.public });
+      revision.public = updated.is_public;
+      showVisibility();
+      toast(revision.public ? "Revision is now public" : "Revision is now private");
+    } catch (error) {
+      toast(error.message);
+    }
+    toggle.disabled = false;
+  });
+
+  showVisibility();
+
+  const actions = el(
+    "div",
+    { class: "actions" },
+    el("a", { class: "btn ghost small", href: `#/p/${uid}` }, "Back to the paste"),
+    el("button", { class: "btn ghost small", onclick: () => copy(revision.content || "", "Content") }, "Copy"),
+    isOwner && toggle
+  );
+
+  view.replaceChildren(
+    el(
+      "section",
+      { class: "card" },
+      el(
+        "div",
+        { class: "paste-head" },
+        el("div", {}, el("h1", {}, revision.title || "Untitled"), el("div", { class: "meta" }, el("span", { class: "tag light" }, `revision ${revision.number}`), visibility)),
+        actions
+      ),
+      codeBlock(revision.content || "")
+    )
+  );
 }
 
 /* ---------- lists ---------- */
@@ -628,8 +807,10 @@ function route() {
   const [path, query] = location.hash.replace(/^#/, "").split("?");
   const page = Math.max(1, parseInt(new URLSearchParams(query).get("page") || "1", 10));
   const pasteMatch = path.match(/^\/p\/([0-9a-f-]{36})$/i);
+  const revisionMatch = path.match(/^\/p\/([0-9a-f-]{36})\/r\/(\d+)$/i);
 
   if (pasteMatch) return renderPaste(pasteMatch[1]);
+  if (revisionMatch) return renderRevision(revisionMatch[1], revisionMatch[2]);
   if (path === "/public") return renderList("public", page);
   if (path === "/mine") return renderList("mine", page);
   if (path === "/login") return renderAuth("login");

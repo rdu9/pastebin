@@ -279,6 +279,12 @@ pre.code span.line:hover { background: var(--surface-2); }
   transition: filter 240ms ease, transform 240ms ease;
 }
 .images button:hover img { filter: none; transform: scale(1.04); }
+.history { margin-top: 24px; }
+.history:empty { display: none; }
+.history h2 { margin: 0 0 8px; font-size: 15px; font-weight: 650; }
+.edit-actions { display: flex; gap: 8px; }
+.edit-actions .btn { min-width: 100px; }
+.editor-foot .over { color: var(--white); font-weight: 700; }
 .notice { margin: 14px 0 0; font: 12px var(--mono); color: var(--muted); }
 
 .lightbox {
