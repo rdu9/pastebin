@@ -2,7 +2,7 @@
 
 A pastebin with image uploads, hosted on Kubernetes, on a DigitalOcean droplet.
 
-> This is a backend project, with a frontend that is a small, AI-generated static page that's only there to show the backend working.
+> This is a backend project, with a frontend that is a small, AI generated static page that's only there to show the backend working.
 
 **Full demo (1 min):**
 
@@ -17,7 +17,10 @@ A project that helped me understand Kubernetes better, and also learn a lot of n
 - Pastes: public / unlisted / private, expiry (1h, 1d, 1w, never), burn-after-reading
 - Image uploads, straight from the browser to object storage, processed in the background
 - Accounts with session cookies, rate limiting per user / per IP
-- Expired pastes cleaned up automatically, images included
+- Expired pastes cleaned up automatically with images included
+- Full-text search over public pastes that are ranked by relevance ( tsvector + GIN index )
+- Edit history: every edit keeps the previous version, revisions are private by default, the owner can make them public one by one
+- View counter, per viewer, batched from Redis into Postgres every minute
 
 ## Architecture
 
@@ -35,9 +38,11 @@ flowchart TD
     W --> G
     C[cleanup CronJob] --> P
     C --> G
+    BT[beat: Celery scheduler] -->|every 60s| R
 ```
 
 The api never touches the image bytes on upload, and the browser uploads them to Garage directly. A Celery worker processes the image afterwards. That's how the api stays fast, and big uploads don't block it at all.
+Views are counted in Redis first ( one INCR per view ) and a beat scheduled task flushes them to Postgres in one batch every minute.
 
 ## Stack
 
@@ -67,6 +72,7 @@ The api never touches the image bytes on upload, and the browser uploads them to
 | Postgres, Redis, Garage | StatefulSet + PVC |
 | api | Deployment + HPA (2–6 pods, 70 % CPU) |
 | worker | Deployment, no Service |
+| beat | Deployment, 1 replica with `Recreate` |
 | migrations | Job, before every rollout |
 | cleanup | CronJob, every 5 min, `concurrencyPolicy: Forbid` |
 | secrets | Sealed Secrets (encrypted in git) |
@@ -93,6 +99,7 @@ The api never touches the image bytes on upload, and the browser uploads them to
 | network isolation | a pod without a label => Redis; a pod from another namespace => Postgres (k3d) | both blocked |
 | read-only filesystem | `touch /app/x` inside the api pod (k3d) | `Read-only file system`, uploads still processed |
 | secrets | delete the Secret (k3d) | recreated from the sealed file in git within seconds |
+| search index | `EXPLAIN ANALYZE` on 100k pastes, with and without the GIN index | **~235× faster** with the index |
 
 ![cluster](docs/demo/cluster.png)
 ![rollout under load](docs/demo/rollout-hey.png)
@@ -105,12 +112,19 @@ The api never touches the image bytes on upload, and the browser uploads them to
 - **Burn-after-reading with `SELECT … FOR UPDATE`:** two people can't both read it
 - **Celery `acks_late` + idempotent tasks:** a task might run twice after a crash, and that is harmless
 - **The same image everywhere:** configured only by environment variables
+- **Search vector as a generated column:** Postgres keeps it in sync on every insert update and no app code can forget it. Uses the `'simple'` config that works for any language, but `running` still won't match `run`, for example
+- **Write-behind view counter:** fast and cheap, but up to a minute of views can be lost if Redis dies
+- **Revisions numbered under `SELECT … FOR UPDATE` + a unique `(paste, number)` constraint:** two edits at once can't get the same number
+- **A public revision of a private paste stays hidden:** the paste's visibility is checked first, the revision after it
 
 ## What went wrong and what I learned
 
 - a new kombu release broke the worker in a fresh build: the code didn't change, but an unpinned dependency did, so I pinned it
 - rollouts dropped a few requests until `preStop`
 - NetworkPolicies kept old connections alive, so problems only showed after restarts
+- a migration added a non null column without a server default and it passed on the empty Compose database and failed on k3d, which had data
+- the first version of revisions leaked, a public revision of a private paste was readable by anyone
+
 
 ## Run it locally
 
@@ -120,7 +134,7 @@ docker compose up --build
 # http://localhost:8000
 ```
 
-Tests: `pytest` (28 tests: auth, pastes, images).
+Tests: `pytest` (52 tests: auth, pastes, images, views, search, revisions)
 
 On k3d: use `scripts/deploy-local.sh`
 
@@ -139,10 +153,14 @@ On k3d: use `scripts/deploy-local.sh`
 | POST | `/api/v1/images/upload-url`, `/{id}/complete` | image upload |
 | GET | `/i/{id}` (`?thumb=1`) | view an image |
 | GET | `/healthz`, `/readyz` | liveness / readiness |
+| GET | `/api/v1/pastes/search?q=` | full-text search |
+| PUT | `/api/v1/pastes/{id}` | edit (saves the previous version) |
+| GET | `/api/v1/pastes/{id}/revisions`, `/revisions/{n}` | edit history |
+| PATCH | `/api/v1/pastes/{id}/revisions/{n}` | make a revision public / private |
 
 ## Still not implemented
 
 - real client IPs behind the load balancer, HTTP => HTTPS redirect
 - moderation (reports, takedown) before the demo can stay online
-- a dependency lock file, CI with GitHub Actions
-- roles, user profiles, full-text search, a view counter, edit history
+- CI with GitHub Actions
+- roles, user profiles
