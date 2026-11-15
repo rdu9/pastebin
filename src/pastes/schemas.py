@@ -16,3 +16,6 @@ class PasteUpdateModel(BaseModel, extra="forbid"):
     title: str | None = None
     content: str = Field(min_length=1, max_length=512_000)
     language: str | None = None
+
+class RevisionVisibilityModel(BaseModel, extra="forbid"):
+    is_public: bool

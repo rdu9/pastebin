@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, Request
 from src.db.main import get_session
-from .schemas import PasteCreateModel, PasteUpdateModel
+from .schemas import PasteCreateModel, PasteUpdateModel, RevisionVisibilityModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 from .service import PasteService
 from src.auth.dependencies import get_optional_user_uid,get_current_user_uid
@@ -95,4 +95,36 @@ async def edit_paste(
     session: AsyncSession = Depends(get_session),
 ):
     response = await pastes_service.update_paste(paste_uid, payload, user_uid, session)
+    return response
+
+@pastes_router.get("/{paste_uid}/revisions")
+async def list_revisions(
+    paste_uid: uuid.UUID,
+    user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.list_revisions(paste_uid, user_uid, session)
+    return response
+
+
+@pastes_router.get("/{paste_uid}/revisions/{number}")
+async def get_revision(
+    paste_uid: uuid.UUID,
+    number: int,
+    user_uid: uuid.UUID | None = Depends(get_optional_user_uid),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.get_revision(paste_uid, number, user_uid, session)
+    return response
+
+
+@pastes_router.patch("/{paste_uid}/revisions/{number}")
+async def set_revision_visibility(
+    paste_uid: uuid.UUID,
+    number: int,
+    payload: RevisionVisibilityModel,
+    user_uid: uuid.UUID = Depends(get_current_user_uid),
+    session: AsyncSession = Depends(get_session),
+):
+    response = await pastes_service.set_revision_visibility(paste_uid, number, payload, user_uid, session)
     return response

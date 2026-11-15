@@ -3,7 +3,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, or_
 import uuid
 from datetime import datetime, timedelta, timezone
-from .schemas import PasteCreateModel, PasteUpdateModel
+from .schemas import PasteCreateModel, PasteUpdateModel, RevisionVisibilityModel
 from src.errors import NotFound, Forbidden, TooLarge
 from fastapi.responses import PlainTextResponse
 from starlette.concurrency import run_in_threadpool
@@ -88,16 +88,12 @@ class PasteService:
         await session.refresh(new_paste)
         return new_paste
 
-    async def view_paste(
+    async def get_viewable_paste(
         self,
         paste_uid: uuid.UUID,
         user_uid: uuid.UUID | None,
-        viewer: str,
         session: AsyncSession,
     ):
-
-        # fetch the paste object before anything, and check burn after expiry
-
         statement = select(Paste).where(
             Paste.uid == paste_uid,
             or_(
@@ -110,13 +106,22 @@ class PasteService:
         if not response_paste:
             raise NotFound()
 
-        # check the visibility
-
         if (
             response_paste.visibility == Visibility.private
             and response_paste.owner_uid != user_uid
         ):
             raise NotFound()
+
+        return response_paste
+
+    async def view_paste(
+        self,
+        paste_uid: uuid.UUID,
+        user_uid: uuid.UUID | None,
+        viewer: str,
+        session: AsyncSession,
+    ):
+        response_paste = await self.get_viewable_paste(paste_uid, user_uid, session)
 
         if response_paste.burn_after_reading:
             response_paste.content = None
@@ -336,7 +341,7 @@ class PasteService:
             for paste in pastes
         ]
 
-    async def update_paste( 
+    async def update_paste(
         self,
         paste_uid: uuid.UUID,
         payload: PasteUpdateModel,
@@ -345,7 +350,7 @@ class PasteService:
     ):
 
         # first part
-        
+
         # set the new values for the main paste, revision gets the current ones
         title = payload.title
         content = payload.content
@@ -356,15 +361,19 @@ class PasteService:
 
         language = payload.language
 
-        statement = select(Paste).where(
-            Paste.uid == paste_uid,
-            Paste.owner_uid == user_uid,
-            Paste.burn_after_reading == False,
-            or_(
-                Paste.expires_at.is_(None),
-                Paste.expires_at > datetime.now(timezone.utc),
-            ),
-        ).with_for_update()
+        statement = (
+            select(Paste)
+            .where(
+                Paste.uid == paste_uid,
+                Paste.owner_uid == user_uid,
+                Paste.burn_after_reading == False,
+                or_(
+                    Paste.expires_at.is_(None),
+                    Paste.expires_at > datetime.now(timezone.utc),
+                ),
+            )
+            .with_for_update()
+        )
 
         found_paste = (await session.exec(statement)).one_or_none()
 
@@ -373,17 +382,19 @@ class PasteService:
 
         # second part
 
-        statement = select(func.max(PasteRevision.number)).where(PasteRevision.paste_uid == found_paste.uid)
+        statement = select(func.max(PasteRevision.number)).where(
+            PasteRevision.paste_uid == found_paste.uid
+        )
         last_number = (await session.exec(statement)).one()
         next_number = (last_number or 0) + 1
 
         new_revision_paste = PasteRevision(
-            paste_uid = found_paste.uid,
+            paste_uid=found_paste.uid,
             number=next_number,
-            title = found_paste.title,
-            language = found_paste.language,
-            content = found_paste.content,
-            size_bytes = found_paste.size_bytes
+            title=found_paste.title,
+            language=found_paste.language,
+            content=found_paste.content,
+            size_bytes=found_paste.size_bytes,
         )
 
         # update the result paste after the revision paste, so the revision paste gets the old values
@@ -401,4 +412,89 @@ class PasteService:
 
         return found_paste
 
+    async def list_revisions(
+        self, paste_uid: uuid.UUID, user_uid: uuid.UUID | None, session: AsyncSession
+    ):
+        paste = await self.get_viewable_paste(paste_uid, user_uid, session)
+        is_owner = user_uid is not None and paste.owner_uid == user_uid
 
+        statement = select(PasteRevision).where(PasteRevision.paste_uid == paste_uid)
+        if not is_owner:
+            statement = statement.where(PasteRevision.is_public == True)
+        statement = statement.order_by(PasteRevision.number)
+
+        found_revisions = (await session.exec(statement)).all()
+
+        return [
+            {
+                "uid": revision.uid,
+                "title": revision.title,
+                "number": revision.number,
+                "public": revision.is_public,
+                "created_at": revision.created_at,
+            }
+            for revision in found_revisions
+        ]
+
+    async def get_revision(
+        self,
+        paste_uid: uuid.UUID,
+        number: int,
+        user_uid: uuid.UUID | None,
+        session: AsyncSession,
+    ):
+        paste = await self.get_viewable_paste(paste_uid, user_uid, session)
+        is_owner = user_uid is not None and paste.owner_uid == user_uid
+
+        statement = select(PasteRevision).where(
+            PasteRevision.paste_uid == paste_uid,
+            PasteRevision.number == number,
+        )
+        if not is_owner:
+            statement = statement.where(PasteRevision.is_public == True)
+
+        found_revision = (await session.exec(statement)).one_or_none()
+
+        if not found_revision:
+            raise NotFound()
+
+        return {
+            "uid": found_revision.uid,
+            "title": found_revision.title,
+            "number": found_revision.number,
+            "content": found_revision.content,
+            "public": found_revision.is_public,
+        }
+
+    async def set_revision_visibility(
+        self,
+        paste_uid: uuid.UUID,
+        number: int,
+        payload: RevisionVisibilityModel,
+        user_uid: uuid.UUID,
+        session: AsyncSession,
+    ):
+        visiblity = payload.is_public
+
+        statement = (
+            select(PasteRevision)
+            .join(Paste)
+            .where(
+                Paste.uid == paste_uid,
+                Paste.owner_uid == user_uid,
+                PasteRevision.paste_uid == paste_uid,
+                PasteRevision.number == number,
+            )
+        )
+
+        found_revision = (await session.exec(statement)).one_or_none()
+
+        if not found_revision:
+            raise NotFound()
+
+        found_revision.is_public = visiblity
+
+        session.add(found_revision)
+
+        await session.commit()
+        return found_revision
