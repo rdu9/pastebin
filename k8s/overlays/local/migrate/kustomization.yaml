@@ -4,4 +4,4 @@ resources:
   - ../../../base/migrate
 images:
   - name: pastebin
-    newTag: "213e5b0"
+    newTag: "df30c03"
